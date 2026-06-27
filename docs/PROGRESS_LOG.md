@@ -30,6 +30,10 @@
 - GitHub auth: gh token lacks `workflow` scope, PAT lacks repo access → workflow parked in `docs/deploy/`,
   CI not enabled, deploys via wrangler. See INFRA.md.
 
+**Final verification:** live app HTTP 200; agent re-verified on a 2nd question type (worst safety record →
+Aurora TRIR 9.27 vs Cedar Rapids 4.38, correct comparison). Docs reviewed + synced. **Session 1 ends with
+Phase 1 fully live.**
+
 **Next:** Phase 2 (browser-verify UI, enable CI + pg_cron, kg_query text-to-SQL, RLS scoping).
 
 ---

@@ -3,10 +3,10 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-27 (session 1, end)
-**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE
-**Repo:** `/home/clawd/projects/clayos` → pushed to **github.com/jpm72780/clayos** (private)
-**Live app:** **https://clayos.pages.dev**
+**Last updated:** 2026-06-27 (session 1, end — final smoke test passed, docs reviewed)
+**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE & verified
+**Repo:** `/home/clawd/projects/clayos` → pushed to **github.com/jpm72780/clayos** (private, `main`)
+**Live app:** **https://clayos.pages.dev** (HTTP 200)
 
 ---
 
@@ -34,9 +34,12 @@ new repo + new Supabase project · Postgres-native graph · depth-first (3 BUs, 
 **Live system (all working):**
 - **App:** https://clayos.pages.dev (Cloudflare Pages) — Ontology viewer (Sigma), Reporting (Recharts), Ask ClayOS (chat).
 - **Supabase:** project `fwaydsjpudusbaeyccjc` — schema + seed + 750 embeddings loaded; `clayos` schema exposed to PostgREST.
-- **Edge functions:** `agent-ask` (Claude tool-loop) + `embed-entities`, deployed with secrets set.
-- **Agent verified:** "Which Clayco Compute projects are over budget and why" → grounded cited answer (Aurora CPI 0.91, EAC $396.9M, TRIR 9.27) routing through kg_kpi/kg_search/kg_traverse.
-- **Code:** github.com/jpm72780/clayos (main).
+- **Edge functions:** `agent-ask` (Claude `opus-4-8` tool-loop) + `embed-entities`, deployed with secrets set.
+- **Agent verified end-to-end on 2 question types** (against live cloud):
+  - "Which Clayco Compute projects are over budget and why" → Aurora CPI 0.91 / SPI 0.839 / EAC $396.9M (cited).
+  - "Which project has the worst safety record" → Aurora TRIR 9.27 vs Cedar Rapids 4.38 (correct comparison table).
+  - Routes through kg_kpi/kg_search/kg_traverse/kg_get_entity; numbers come from KPI matviews (no hallucination).
+- **Code:** github.com/jpm72780/clayos (`main`). Frontend data paths confirmed via anon PostgREST.
 
 **Known caveats / not done:**
 - **CI auto-deploy NOT enabled.** The Actions workflow is parked at `docs/deploy/github-actions-deploy.yml`
@@ -78,9 +81,8 @@ re-run all migrations + `python3 seed/generate.py | docker exec -i clayos_db psq
 (Note: `scripts/db.sh reset` can't delete `.pgdata` — it's owned by the container's postgres uid;
 use the DROP SCHEMA path instead.)
 
-**No cloud infra provisioned yet** — no ClayOS Supabase project, Cloudflare Pages, or GitHub repo.
-Embeddings NOT yet generated (750 jobs queued; need OpenAI key + embed step → `kg_search` is dormant
-until then). All credentials exist; see `docs/INFRA.md`.
+*(The Phase-0 note above was written before cloud provisioning. Superseded by the Current snapshot:
+cloud infra is now provisioned, seeded, embedded, and deployed.)*
 
 ---
 
