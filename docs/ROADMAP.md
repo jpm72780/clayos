@@ -20,17 +20,18 @@
 - **Exit ✅:** kg_traverse returns cross-domain paths (Aurora→255 @2hops); kg_bu_rollup sensible
   ($1.79B/6 projects); Aurora CPI 0.91 & SPI 0.84 (<1). 750 entities / 1004 edges.
 
-## Phase 1 — First vertical slice (the demo)  ← the money milestone
-Scope: 1 business unit + 2 active projects, all five layers thin.
-- [ ] Edge function `agent-ask` (forked loop) + `kg_tools.ts` (kg_search/get_entity/traverse/kpi/schema)
-- [ ] Edge function `embed-entities` (drain graph_embed_jobs)
-- [ ] Frontend scaffold (Vite + React 19 + Tailwind) + Supabase client + auth
-- [ ] GraphView (Sigma.js): filter by BU/domain, click node → real record in right rail
-- [ ] DashboardView (Recharts): EVM SPI/CPI + RFI KPIs for the demo BU
-- [ ] AskView (chat) → agent-ask
-- [ ] `app_*` stub tables present (already in 004)
-- **Exit:** open graph → click the behind-schedule project → see SPI/CPI chart → ask the agent
-  "which Clayco Compute projects are over budget and why" → grounded, cited answer.
+## Phase 1 — First vertical slice (the demo)  ✅ COMPLETE & DEPLOYED (2026-06-27)
+Scope: all five layers thin, live. **App: https://clayos.pages.dev**
+- [x] Edge function `agent-ask` (forked loop) + `kg_tools.ts` (search/get_entity/traverse/kpi/classification/schema)
+- [x] Edge function `embed-entities` (drain graph_embed_jobs) — all 750 embedded
+- [x] Frontend scaffold (React 19 + Vite 6 + Tailwind 4) + Supabase client
+- [x] GraphView (Sigma.js + graphology): filter by BU/domain, click node → real record in right rail
+- [x] DashboardView (Recharts): CPI/SPI, BAC vs EAC, RFIs, TRIR + BU rollup strip
+- [x] AskView (chat) → agent-ask
+- [x] `app_*` stub tables present (in 004)
+- [x] Provisioned Supabase + Cloudflare Pages + GitHub; deployed end-to-end
+- **Exit ✅:** agent answers "which Clayco Compute projects are over budget and why" with grounded, cited
+  numbers (Aurora CPI 0.91, EAC $396.9M). Browser visual-verify of the UI = the one remaining check (Phase 2 #1).
 
 ## Phase 2 — Widen + deepen
 - [ ] All 3 BUs, full lifecycle coverage in seed

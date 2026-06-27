@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-06-27 — Session 1 (Opus 4.8), part 3: Phase 1 LIVE (build + provision)
+
+**Did:**
+- Built edge functions: `_shared/{cors,db,embeddings,kg_tools}.ts`, `agent-ask` (Claude opus-4-8 32-turn
+  tool loop, read-only kg_* tools), `embed-entities` (drain graph_embed_jobs). Consulted claude-api skill
+  (model `claude-opus-4-8`, no temperature/thinking).
+- Built frontend (React 19 + Vite 6 + Tailwind 4): App shell + BU filter, GraphView (Sigma+graphology
+  forceAtlas2 + drill-down right rail), DashboardView (Recharts: CPI/SPI, BAC vs EAC, RFIs, TRIR + BU
+  rollup strip), AskView (chat → agent-ask). Production build OK (978KB).
+- **Provisioned cloud:** created Supabase project `fwaydsjpudusbaeyccjc` (us-east-2, PG17); applied all 9
+  migrations + seed (750 entities/1004 edges); exposed `clayos` schema to PostgREST via mgmt API; deployed
+  both edge functions + secrets; drained all 750 embeddings.
+- **Verified agent end-to-end** against live cloud — grounded cited answer (Aurora CPI 0.91 / SPI 0.839 /
+  EAC $396.9M / TRIR 9.27 / 19 open RFIs).
+- Deployed frontend to **https://clayos.pages.dev** (Cloudflare Pages); verified HTTP 200 + anon PostgREST
+  data paths (kg_bu_rollup, kpi_evm, kg_subgraph 528 nodes).
+- Pushed code to **github.com/jpm72780/clayos**.
+
+**Gotchas / decisions:**
+- Seed `SET session_replication_role` removed (superuser-only on Supabase).
+- PostgREST didn't know `clayos` schema → set via mgmt API PATCH (config.toml only affects local).
+- Pooler host is `aws-1-us-east-2` (not aws-0); DDL needs session pooler port 5432.
+- GitHub auth: gh token lacks `workflow` scope, PAT lacks repo access → workflow parked in `docs/deploy/`,
+  CI not enabled, deploys via wrangler. See INFRA.md.
+
+**Next:** Phase 2 (browser-verify UI, enable CI + pg_cron, kg_query text-to-SQL, RLS scoping).
+
+---
+
 ## 2026-06-27 — Session 1 (Opus 4.8), part 2: Phase 0 COMPLETE
 
 **Did:**

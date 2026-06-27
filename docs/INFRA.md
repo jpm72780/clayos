@@ -32,15 +32,21 @@
 ## Cloudflare
 
 - **Account ID:** `de7697d25ef5d3238937acc9262fda76`. Token: `CLOUDFLARE_API_TOKEN` (scoped for Pages).
-- **ClayOS Pages project:** ⛔ NOT YET CREATED. Plan: project name `clayos`, production branch `main`,
-  build = Vite (`app/` → `dist/`), deploy via `wrangler pages deploy` from GitHub Actions.
+- **ClayOS Pages project:** ✅ CREATED 2026-06-27. Project `clayos`, production branch `main`.
+  **Live: https://clayos.pages.dev**. Deployed directly via `npx wrangler pages deploy app/dist
+  --project-name=clayos`. (Build env: VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY baked into the bundle.)
 - ⚠️ wrangler rejects unicode in commit titles — keep commit messages ASCII.
 - Existing for reference: `orgmapai` Pages project (orgmapai.com).
 
 ## GitHub
 
-- ⛔ ClayOS repo NOT YET CREATED. Plan: a new repo (e.g. `jpm72780/clayos`), push `/home/clawd/projects/clayos`.
-  Auth via `GITHUB_TOKEN` (fine-grained PAT). Add Cloudflare deploy secrets to repo Actions.
+- ✅ **github.com/jpm72780/clayos** (private), pushed 2026-06-27 on `main`.
+- ⚠️ Auth note: the **`gh` OAuth token** (scopes gist/read:org/repo) pushes code but **lacks `workflow`
+  scope** — can't push `.github/workflows/*`. The **fine-grained PAT** (`GITHUB_TOKEN`) has **no access to
+  this new repo** (scoped to orgmapai). So: the Actions workflow is parked at
+  `docs/deploy/github-actions-deploy.yml`, and Actions secrets weren't set (public-key endpoint 404 —
+  needs admin/Actions enabled). To enable CI: use a `workflow`-scoped token, move the file into
+  `.github/workflows/`, and set the 4 repo secrets. Push from here with: `gh auth token` in the remote URL.
 
 ## n8n (future — ingestion only)
 

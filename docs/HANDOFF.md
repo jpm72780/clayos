@@ -3,9 +3,10 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-27 (session 1, late)
-**Updated by:** Claude (Opus 4.8) session — Phase 0 complete
-**Repo:** `/home/clawd/projects/clayos` (not yet a git repo / not yet pushed)
+**Last updated:** 2026-06-27 (session 1, end)
+**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE
+**Repo:** `/home/clawd/projects/clayos` → pushed to **github.com/jpm72780/clayos** (private)
+**Live app:** **https://clayos.pages.dev**
 
 ---
 
@@ -28,7 +29,29 @@ new repo + new Supabase project · Postgres-native graph · depth-first (3 BUs, 
 
 ## Current snapshot — where we are RIGHT NOW
 
-**Phase:** Phase 0 (Foundation) — **COMPLETE & verified on local Postgres.** Ready for Phase 1.
+**Phase:** Phase 1 (vertical slice) — **COMPLETE & DEPLOYED LIVE.** All five layers demoable end-to-end.
+
+**Live system (all working):**
+- **App:** https://clayos.pages.dev (Cloudflare Pages) — Ontology viewer (Sigma), Reporting (Recharts), Ask ClayOS (chat).
+- **Supabase:** project `fwaydsjpudusbaeyccjc` — schema + seed + 750 embeddings loaded; `clayos` schema exposed to PostgREST.
+- **Edge functions:** `agent-ask` (Claude tool-loop) + `embed-entities`, deployed with secrets set.
+- **Agent verified:** "Which Clayco Compute projects are over budget and why" → grounded cited answer (Aurora CPI 0.91, EAC $396.9M, TRIR 9.27) routing through kg_kpi/kg_search/kg_traverse.
+- **Code:** github.com/jpm72780/clayos (main).
+
+**Known caveats / not done:**
+- **CI auto-deploy NOT enabled.** The Actions workflow is parked at `docs/deploy/github-actions-deploy.yml`
+  (the available gh token lacks `workflow` scope; the fine-grained PAT has no access to this repo). To deploy
+  now: `cd app && npm run build && npx wrangler pages deploy dist --project-name=clayos`. To enable CI: add
+  the file to `.github/workflows/` with a `workflow`-scoped token and set repo secrets (CLOUDFLARE_API_TOKEN,
+  CLOUDFLARE_ACCOUNT_ID, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — anon key is public-safe).
+- **Frontend not yet visually verified in a browser** (build + all data paths via anon PostgREST confirmed; no screenshot taken).
+- **pg_cron not enabled** on the cloud project (migration 009 no-op'd). KPI matviews are fresh from seed but
+  won't auto-refresh until pg_cron is enabled + `refresh_all_kpis()` scheduled.
+- RLS role-scoping and text-to-SQL (`kg_query`) deferred to Phase 2 (see ROADMAP).
+
+---
+
+### (historical) Phase 0 — Foundation — COMPLETE & verified on local Postgres.
 
 **Done:**
 - Repo scaffolded: `README.md`, `.gitignore`, `docker-compose.yml` (local pgvector PG on port
@@ -61,19 +84,25 @@ until then). All credentials exist; see `docs/INFRA.md`.
 
 ---
 
-## Next actions (Phase 1 — the demo slice)
+## Next actions (Phase 2 — widen + deepen)
 
-1. **Embeddings:** write `seed/embed.py` (or deploy `embed-entities`) to drain `graph_embed_jobs`
-   via OpenAI text-embedding-3-small (1536-d) so `kg_search` works. Key in secrets.env.
-2. **Edge functions:** build `supabase/functions/_shared/kg_tools.ts` (kg_search/get_entity/
-   traverse/kpi/schema) + `agent-ask/index.ts` (fork counterpart's 32-turn loop). Verify Claude
-   model IDs via the claude-api skill first.
-3. **Frontend:** scaffold Vite+React 19+Tailwind in `app/`; Supabase client; GraphView (Sigma.js),
-   DashboardView (Recharts), AskView (chat → agent-ask).
-4. **Provision:** create ClayOS Supabase project → `supabase db push` + seed; deploy functions;
-   create GitHub repo + Cloudflare Pages; wire Actions deploy. See `docs/INFRA.md` checklist.
-5. Phase 1 exit: open graph → click Aurora → SPI/CPI chart → ask agent "which Clayco Compute
-   projects are over budget and why" → grounded, cited answer.
+1. **Visually verify the UI** in a browser (or the /run skill): open https://clayos.pages.dev — confirm
+   the Sigma graph renders + drill-down works, dashboards render, chat answers. Fix any runtime issues.
+2. **Enable CI auto-deploy** (optional): move `docs/deploy/github-actions-deploy.yml` →
+   `.github/workflows/deploy.yml` using a `workflow`-scoped token; set the 4 repo secrets.
+3. **Enable pg_cron** on the cloud project + reschedule `refresh_all_kpis()` / `snapshot_kpis()` /
+   `kg_reproject_all()` (migration 009 patterns; enable the extension first).
+4. **`kg_query` text-to-SQL** tool with the safety harness (clayos_readonly role, single-SELECT
+   validation, statement_timeout) — currently NOT in the tool registry.
+5. **RLS scoping** by role (field user vs exec) + per-turn world-state tuning.
+6. Deepen seed coverage (WIP/backlog/utilization dashboards, kpi_history trend charts).
+
+## How to deploy right now (no CI)
+- **Frontend:** `cd app && npm run build && npx wrangler pages deploy dist --project-name=clayos`
+  (needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID from secrets.env).
+- **DB migration:** `docker exec -i clayos_db psql "$CLAYOS_DB_SESSION_DSN" < migrations/NNN.sql`
+  (source `/home/clawd/.config/clayos.env` first).
+- **Edge function:** `supabase functions deploy <name> --project-ref fwaydsjpudusbaeyccjc --no-verify-jwt`.
 
 ---
 
