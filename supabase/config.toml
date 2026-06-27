@@ -1,0 +1,13 @@
+# Supabase project config for ClayOS.
+project_id = "clayos"
+
+[functions.agent-ask]
+verify_jwt = false
+
+[functions.embed-entities]
+verify_jwt = false
+
+[api]
+# Expose the clayos schema over PostgREST so the SPA can read views/RPCs.
+schemas = ["public", "clayos", "graphql_public"]
+extra_search_path = ["public", "clayos", "extensions"]

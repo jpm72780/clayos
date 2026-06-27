@@ -1,0 +1,22 @@
+# Local Postgres for ClayOS development.
+# pgvector image ships with the vector extension; ltree + pg_trgm are in
+# postgres-contrib (bundled). pg_cron is NOT included here — the cron migration
+# (009) guards on extension availability and is a no-op locally. Cron scheduling
+# is exercised only on Supabase.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: clayos_db
+    environment:
+      POSTGRES_USER: clayos
+      POSTGRES_PASSWORD: clayos
+      POSTGRES_DB: clayos
+    ports:
+      - "54329:5432"   # non-default host port to avoid clashing with other PG instances on the VPS
+    volumes:
+      - ./.pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clayos -d clayos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20

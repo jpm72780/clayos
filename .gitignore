@@ -1,0 +1,25 @@
+# deps
+node_modules/
+app/node_modules/
+.venv/
+seed/.venv/
+__pycache__/
+*.pyc
+
+# build
+app/dist/
+.wrangler/
+
+# env / secrets — never commit
+.env
+.env.*
+*.local
+secrets.env
+
+# editor / os
+.DS_Store
+.vscode/
+*.log
+
+# local db volume
+.pgdata/
