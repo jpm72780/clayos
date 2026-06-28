@@ -52,7 +52,7 @@ w("SET search_path TO clayos, public, extensions;")
 # clean slate (children first via cascade from business_units/projects)
 w("TRUNCATE clayos.business_units, clayos.organizations, clayos.persons, clayos.projects,")
 w("  clayos.classification_codes RESTART IDENTITY CASCADE;")
-w("DELETE FROM clayos.entities; DELETE FROM clayos.edges;\n")
+w("DELETE FROM clayos.entities; DELETE FROM clayos.edges; DELETE FROM clayos.kpi_history;\n")
 
 # ─── Classification (curated MasterFormat divisions + sections, UniFormat) ────
 mf_div = [
@@ -100,6 +100,7 @@ w(f"INSERT INTO clayos.business_units (id,parent_id,slug,name,kind) VALUES "
 children = [
     ("clayco-compute", "Clayco Compute", "construction"),
     ("clayco-core", "Clayco Construction", "construction"),
+    ("crg", "CRG — Clayco Real Estate Group", "real_estate"),
     ("ljc", "Lamar Johnson Collaborative", "architecture"),
     ("shared-services", "Shared Services", "service_group"),
 ]
@@ -157,6 +158,8 @@ plan = [("clayco-compute", "project_management", 4), ("clayco-compute", "field",
         ("clayco-compute", "design", 2), ("clayco-compute", "executive", 1),
         ("clayco-core", "project_management", 4), ("clayco-core", "field", 4),
         ("clayco-core", "estimating", 2), ("clayco-core", "executive", 1),
+        ("crg", "project_management", 3), ("crg", "field", 3),
+        ("crg", "executive", 1), ("crg", "finance", 1),
         ("ljc", "design", 4), ("ljc", "project_management", 1),
         ("shared-services", "safety", 3), ("shared-services", "recruiting", 3),
         ("shared-services", "it", 2), ("shared-services", "staffing", 2),
@@ -187,20 +190,30 @@ PROJ = [
          planned=0.50, earned=0.52, cpi=1.06, bill_factor=0.93, start=-360, end=300),
     dict(key="LS-101", bu="clayco-core", name="BioGen Cell Therapy Facility", sector="life_sciences",
          stage="construction", status="active", value=185_000_000, owner="biogen", arch="ljc-arch",
-         gc="clayco-gc", dev=None, city="Madison", state="WI", gsf=220000, deep=False,
+         gc="clayco-gc", dev=None, city="Madison", state="WI", gsf=220000, deep=True,
          planned=0.40, earned=0.41, cpi=0.99, bill_factor=1.0, start=-300, end=360),
     dict(key="IN-220", bu="clayco-core", name="Midwest Logistics Megahub", sector="industrial",
          stage="closeout", status="active", value=95_000_000, owner="midwest-reit", arch="ljc-arch",
-         gc="clayco-gc", dev="crg-dev", city="Joliet", state="IL", gsf=1200000, deep=False,
+         gc="clayco-gc", dev="crg-dev", city="Joliet", state="IL", gsf=1200000, deep=True,
          planned=0.98, earned=0.97, cpi=1.03, bill_factor=0.98, start=-720, end=-30),
     dict(key="SEMI-30", bu="clayco-compute", name="Stellar Fab Expansion", sector="semiconductor",
          stage="precon", status="active", value=640_000_000, owner="stellar", arch="ljc-arch",
-         gc="clayco-gc", dev=None, city="Chandler", state="AZ", gsf=900000, deep=False,
+         gc="clayco-gc", dev=None, city="Chandler", state="AZ", gsf=900000, deep=True,
          planned=0.05, earned=0.04, cpi=1.0, bill_factor=1.0, start=-90, end=900),
     dict(key="CW-300", bu="ljc", name="Riverside Mixed-Use Tower", sector="commercial",
          stage="design", status="active", value=140_000_000, owner="riverside-dev", arch="ljc-arch",
-         gc="clayco-gc", dev="crg-dev", city="Chicago", state="IL", gsf=480000, deep=False,
+         gc="clayco-gc", dev="crg-dev", city="Chicago", state="IL", gsf=480000, deep=True,
          planned=0.12, earned=0.11, cpi=1.0, bill_factor=1.0, start=-150, end=720),
+    # CRG — Clayco Real Estate Group (development arm). Synthetic instances of CRG's
+    # real product brands (The Cubes industrial, Chapter student housing).
+    dict(key="CRG-100", bu="crg", name="The Cubes at Stateline", sector="industrial",
+         stage="construction", status="active", value=190_000_000, owner="midwest-reit", arch="ljc-arch",
+         gc="clayco-gc", dev="crg-dev", city="Hammond", state="IN", gsf=1100000, deep=True,
+         planned=0.45, earned=0.43, cpi=0.97, bill_factor=1.02, start=-240, end=240),
+    dict(key="CRG-200", bu="crg", name="Chapter at University Commons", sector="multifamily",
+         stage="construction", status="active", value=120_000_000, owner="riverside-dev", arch="ljc-arch",
+         gc="clayco-gc", dev="crg-dev", city="Champaign", state="IL", gsf=350000, deep=True,
+         planned=0.38, earned=0.40, cpi=1.04, bill_factor=0.97, start=-200, end=300),
 ]
 proj_rows = []
 P = {}
@@ -269,7 +282,7 @@ def build_project_controls(p, full):
                                pv=pv, ev=ev, ac=ac))
         if full:
             aid = uid("act", p["key"], code)
-            pct = min(100, round(p["earned"] * 100 + random.randint(-8, 8)))
+            pct = max(0, min(100, round(p["earned"] * 100 + random.randint(-8, 8))))
             act_rows.append(dict(id=aid, project_id=p["id"], wbs_node_id=wid, activity_code=f"A{code}0",
                                 name=name, planned_start=days(p["start"] + idx * 40),
                                 planned_finish=days(p["start"] + idx * 40 + 60),
@@ -319,19 +332,29 @@ insert("pay_app_lines", ["id", "pay_app_id", "cost_account_id", "description", "
 
 # ─── Spaces + building elements + documents (deep projects) ──────────────────
 sp_rows, be_rows, doc_rows = [], [], []
-ELEMENTS = [("CRAH Unit", "IfcAirTerminal", "Trane", "D30"), ("Switchgear Lineup", "IfcElectricDistributionBoard", "Schneider Electric", "D50"),
+def field_activity(p): return p["stage"] in ("construction", "closeout")  # active field work
+ELEMENTS_DC = [("CRAH Unit", "IfcAirTerminal", "Trane Technologies", "D30"), ("Switchgear Lineup", "IfcElectricDistributionBoard", "Schneider Electric", "D50"),
             ("Standby Generator", "IfcEngine", "Caterpillar Power Systems", "D50"), ("UPS Module", "IfcElectricFlowStorageDevice", "Schneider Electric", "D50"),
             ("Curtain Wall Panel", "IfcCurtainWall", "Glassview Curtainwall", "B"), ("Structural Steel Beam", "IfcBeam", "Ideal Steel Erectors", "B"),
             ("Concrete Pier", "IfcPile", "Concrete Strategies", "A"), ("Chilled Water Pump", "IfcPump", "Trane Technologies", "D30")]
+ELEMENTS_GEN = [("Rooftop Unit", "IfcUnitaryEquipment", "Trane Technologies", "D30"), ("Panelboard", "IfcElectricDistributionBoard", "Schneider Electric", "D50"),
+            ("Passenger Elevator", "IfcTransportElement", "Otis", "D"), ("Storefront System", "IfcCurtainWall", "Glassview Curtainwall", "B"),
+            ("Structural Steel Beam", "IfcBeam", "Ideal Steel Erectors", "B"), ("Concrete Column", "IfcColumn", "Concrete Strategies", "A"),
+            ("VAV Terminal", "IfcAirTerminalBox", "Trane Technologies", "D30"), ("Plumbing Riser", "IfcPipeSegment", "Apex Plumbing", "D")]
+SPACE = {"data_center": ("Data Hall", "data_hall"), "industrial": ("Warehouse Bay", "warehouse"),
+         "multifamily": ("Residential Floor", "residential"), "life_sciences": ("Cleanroom Suite", "cleanroom"),
+         "semiconductor": ("Fab Bay", "fab"), "commercial": ("Office Floor", "office")}
 for p in PROJ:
     if not p["deep"]:
         continue
+    els = ELEMENTS_DC if p["sector"] == "data_center" else ELEMENTS_GEN
+    sp_name, sp_type = SPACE.get(p["sector"], ("Level Area", "general"))
     for lvl in range(1, 3):
         for hall in range(1, 3):
             spid = uid("space", p["key"], lvl, hall)
             sp_rows.append(dict(id=spid, project_id=p["id"], building="Main", level=f"L{lvl}",
-                               name=f"Data Hall {lvl}-{hall}", space_type="data_hall", area_sf=48000))
-            for ei, (en, ifc, mfr, ufc) in enumerate(ELEMENTS):
+                               name=f"{sp_name} {lvl}-{hall}", space_type=sp_type, area_sf=48000))
+            for ei, (en, ifc, mfr, ufc) in enumerate(els):
                 be_rows.append(dict(id=uid("be", p["key"], lvl, hall, ei), project_id=p["id"], space_id=spid,
                                    uniformat_code_id=uid("uf", ufc) if any(u[0] == ufc for u in uf) else None,
                                    ifc_class=ifc, name=f"{en} {lvl}-{hall}-{ei+1}", manufacturer=mfr,
@@ -355,7 +378,7 @@ RFI_SUBJECTS = ["Curtain wall embed conflict at grid {g}", "Conduit routing clas
                 "Fireproofing thickness at steel {g}", "Louver size discrepancy at {g}"]
 rfi_rows, sub_rows, log_rows, safe_rows, qual_rows = [], [], [], [], []
 for p in PROJ:
-    nrfi = 42 if p["deep"] else 6
+    nrfi = 42 if field_activity(p) else (16 if p["stage"] == "design" else 8)
     be_ids = [r["id"] for r in be_rows if r["project_id"] == p["id"]]
     for k in range(nrfi):
         sub_date = days(p["start"] + 30 + k * 6)
@@ -382,9 +405,11 @@ for p in PROJ:
                                 status=random.choice(["approved", "approved_as_noted", "under_review", "submitted", "revise_resubmit"]),
                                 submitted_date=sd, returned_date=sd + dt.timedelta(days=random.randint(7, 21)),
                                 ball_in_court=random.choice(["Architect", "Engineer"])))
+    if field_activity(p):  # daily logs / safety / quality only where there's active field work
         crew = 180 if p["key"] == "DC-001" else 130
-        for k in range(45):
-            ld = days(-90 + k * 2)
+        nlogs = 45 if p["stage"] == "construction" else 20
+        for k in range(nlogs):
+            ld = days(-(nlogs - 1) * 2 + k * 2)  # spread up to today
             log_rows.append(dict(id=uid("log", p["key"], k), project_id=p["id"], log_date=ld,
                                 weather=random.choice(["Clear", "Cloudy", "Rain", "Windy"]),
                                 temp_high=random.randint(55, 92), temp_low=random.randint(35, 70),
@@ -486,6 +511,21 @@ for k in range(30):
                        purchase_date=days(-random.randint(60, 900))))
 insert("requisitions", ["id", "business_unit_id", "title", "department", "status", "opened_date", "filled_date", "hiring_manager_person_id", "location"], req_rows)
 insert("it_assets", ["id", "asset_tag", "asset_type", "assigned_person_id", "business_unit_id", "status", "purchase_date"], it_rows)
+
+# ─── Backfill KPI history (12 monthly snapshots/project) for trend charts ────
+hist_rows = []
+for p in PROJ:
+    cur_pct, cur_cpi = p["earned"], p["cpi"]
+    cur_spi = round(p["earned"] / p["planned"], 3) if p["planned"] else 1.0
+    for m in range(1, 13):
+        f = (13 - m) / 13.0  # m=1 (recent) ≈ near current, m=12 ≈ early
+        vals = {"pct_complete": max(0.0, round(cur_pct * f, 3)),
+                "cpi": round(1.0 + (cur_cpi - 1.0) * f + random.uniform(-0.02, 0.02), 3),
+                "spi": round(1.0 + (cur_spi - 1.0) * f + random.uniform(-0.02, 0.02), 3)}
+        for metric, value in vals.items():
+            hist_rows.append(dict(id=uid("hist", p["key"], metric, m), snapshot_date=months_back(m),
+                                 business_unit_id=bu[p["bu"]], project_id=p["id"], metric=metric, value=value))
+insert("kpi_history", ["id", "snapshot_date", "business_unit_id", "project_id", "metric", "value"], hist_rows)
 
 # ─── Rebuild graph + KPIs ────────────────────────────────────────────────────
 w("SELECT clayos.kg_reproject_all();")

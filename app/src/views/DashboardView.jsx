@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   ReferenceLine, CartesianGrid, Legend,
 } from "recharts";
 import {
   buRollup, evmByProject, fieldByProject, safetyByProject,
-  wipByProject, backlogByBu, pipelineByBu, utilizationByBu,
+  wipByProject, backlogByBu, pipelineByBu, utilizationByBu, kpiHistory,
 } from "../lib/api.js";
 
 const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(1) + "M");
@@ -42,10 +42,12 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
   const [backlog, setBacklog] = useState([]);
   const [pipeline, setPipeline] = useState([]);
   const [util, setUtil] = useState([]);
+  const [hist, setHist] = useState({ cpi: [], spi: [], pct_complete: [] });
 
   useEffect(() => {
     buRollup().then(setRollup); evmByProject().then(setEvm); fieldByProject().then(setField); safetyByProject().then(setSafety);
     wipByProject().then(setWip); backlogByBu().then(setBacklog); pipelineByBu().then(setPipeline); utilizationByBu().then(setUtil);
+    Promise.all([kpiHistory("cpi"), kpiHistory("spi"), kpiHistory("pct_complete")]).then(([cpi, spi, pct_complete]) => setHist({ cpi, spi, pct_complete }));
   }, []);
 
   const buName = (id) => bus.find((b) => b.id === id)?.name || "—";
@@ -76,6 +78,16 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
     overBudget: evmF.filter((p) => N(p.cpi) < 1).length, behind: evmF.filter((p) => N(p.spi) < 1).length,
     openRfis: fieldF.reduce((a, p) => a + (p.open_rfis || 0), 0), wTrir, n: evmF.length,
   };
+
+  // performance trend over time from kpi_history (focus → that project, else portfolio average)
+  const histScope = (arr) => (focus ? arr.filter((h) => h.project_id === focus.pid) : businessUnit ? arr.filter((h) => h.business_unit_id === businessUnit) : arr);
+  const trendData = (() => {
+    const byDate = new Map();
+    const add = (arr, key) => { for (const h of histScope(arr)) { const o = byDate.get(h.snapshot_date) || { date: h.snapshot_date }; (o[key] = o[key] || []).push(N(h.value)); byDate.set(h.snapshot_date, o); } };
+    add(hist.cpi, "c"); add(hist.spi, "s");
+    const avg = (a) => (a && a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(3) : null);
+    return [...byDate.values()].map((o) => ({ date: (o.date || "").slice(0, 7), CPI: avg(o.c), SPI: avg(o.s) })).sort((a, b) => a.date.localeCompare(b.date));
+  })();
 
   return (
     <div className="h-full overflow-auto p-5">
@@ -133,6 +145,25 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
           })}
         </div>
       </div>
+
+      {/* performance trend over time (kpi_history) */}
+      {trendData.length > 1 && (
+        <div className="mb-4">
+          <Card title="Performance trend" sub={`CPI / SPI over time · ${focus ? focus.code || focus.name : "portfolio average"}`}>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={trendData} margin={{ left: -16 }}>
+                <CartesianGrid stroke="#1a212b" />
+                <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                <YAxis domain={[0.8, 1.2]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
+                <ReferenceLine y={1} stroke="#64748b" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey="CPI" stroke="#22d3ee" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="SPI" stroke="#a3e635" dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+        </div>
+      )}
 
       {/* charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
