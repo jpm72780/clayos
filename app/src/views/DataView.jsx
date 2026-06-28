@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { allEntities, listBusinessUnits, projectsLite, entityFacts, classificationCodes, entityDetail } from "../lib/api.js";
+import { allEntities, listBusinessUnits, projectsLite, entityFacts, classificationCodes, entityDetail, neighbors } from "../lib/api.js";
 import { colorFor } from "../lib/palette.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
   const [codes, setCodes] = useState(new Map());
   const [selected, setSelected] = useState(null);
   const [showQuant, setShowQuant] = useState(true);
+  const [hlNeighbors, setHlNeighbors] = useState(null); // ids connected to a vendor/employee highlight
 
   const [q, setQ] = useState("");
   const [typeF, setTypeF] = useState("");
@@ -52,6 +53,13 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       setFacts({ a, m });
     });
   }, []);
+
+  // a vendor/employee highlight from the ontology scopes the table to its connected entities
+  useEffect(() => {
+    if (hl && (hl.dim === "vendor" || hl.dim === "employee")) {
+      neighbors(hl.value).then((n) => setHlNeighbors(new Set([(hl.value), ...(n.nodes || []).map((x) => x.id)]))).catch(() => setHlNeighbors(null));
+    } else setHlNeighbors(null);
+  }, [hl]);
 
   const buById = useMemo(() => new Map(bus.map((b) => [b.id, b.name])), [bus]);
   const projById = useMemo(() => new Map(projs.map((p) => [p.id, p])), [projs]);
@@ -88,6 +96,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       (!typeF || r.type === typeF) && (!domainF || r.domain === domainF) && (!buF || r.bu === buF) &&
       (!businessUnit || r.bu === (buById.get(businessUnit) || "")) &&
       (!focus || r.pid === focus.pid) && matchesHl(r) &&
+      (!hlNeighbors || hlNeighbors.has(r.id)) &&
       (!needle || `${r.name} ${r.type} ${r.project} ${r.csi} ${r.status}`.toLowerCase().includes(needle)),
     );
     const { key, dir } = sort;
@@ -97,7 +106,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       return (a || "").toString().localeCompare((b || "").toString()) * dir;
     });
     return out;
-  }, [rows, q, typeF, domainF, buF, businessUnit, buById, focus, hlClass, sort]);
+  }, [rows, q, typeF, domainF, buF, businessUnit, buById, focus, hlClass, hlNeighbors, sort]);
 
   // quantification over the FILTERED rows — reacts to every filter
   const stats = useMemo(() => {
@@ -124,6 +133,16 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
   const openRow = async (id) => { setSelected({ loading: true }); const d = await entityDetail(id); setSelected(d || { missing: true }); };
   const viewInOntology = (r) => { if (r.pid) { const p = projById.get(r.pid); setFocus({ pid: r.pid, name: p?.name, code: p?.code }); goToOntology?.(); } };
   const maxDomain = Math.max(1, ...stats.byDomain.map(([, c]) => c));
+  const hlVendor = hl && (hl.dim === "vendor" || hl.dim === "employee") ? hl : null;
+  const downloadCsv = () => {
+    const cols = ["type", "name", "domain", "project", "bu", "csi", "status", "amount", "activity"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [cols.join(","), ...filtered.map((r) => cols.map((c) => esc(r[c])).join(","))];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "clayco-data.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="h-full flex">
@@ -137,7 +156,9 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
           <Sel value={buF} onChange={setBuF} opts={bus.map((b) => b.name)} placeholder="All business units" />
           {focus && <Chip color="amber" onClear={() => setFocus(null)}>Project: {focus.code || focus.name}</Chip>}
           {hlClass && <Chip color="cyan" onClear={() => setHl(null)}>{hlClass.label}</Chip>}
+          {hlVendor && <Chip color="cyan" onClear={() => setHl(null)}>{hlVendor.label}</Chip>}
           {(q || typeF || domainF || buF) && <button onClick={() => { setQ(""); setTypeF(""); setDomainF(""); setBuF(""); }} className="text-xs text-white/50 hover:text-white/80">clear filters</button>}
+          <button onClick={downloadCsv} className="text-xs text-white/55 hover:text-white/90 border border-white/10 rounded px-2 py-1">⤓ CSV</button>
           <button onClick={() => setShowQuant((s) => !s)} className="ml-auto text-xs text-white/45 hover:text-white/80">{showQuant ? "▾" : "▸"} quantify</button>
           <div className="text-xs text-white/45">{filtered.length.toLocaleString()} of {rows.length.toLocaleString()} · {fmt$(stats.amount)}</div>
         </div>

@@ -14,17 +14,24 @@ const TABS = [
   { id: "dashboard", label: "Clayco Analytics" },
 ];
 
+// restore shared view state from the URL hash so any view is a shareable deep-link
+const initial = (() => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(atob(h))) : {}; } catch { return {}; } })();
+
 export default function App() {
-  const [tab, setTab] = useState("graph");
-  const [ontoMode, setOntoMode] = useState("3d"); // '3d' | 'lifecycle' | 'network'
+  const [tab, setTab] = useState(initial.tab || "graph");
+  const [ontoMode, setOntoMode] = useState(initial.ontoMode || "3d"); // '3d' | 'lifecycle' | 'network'
   const [bus, setBus] = useState([]);
-  const [bu, setBu] = useState(null); // selected business_unit_id (null = all)
+  const [bu, setBu] = useState(initial.bu ?? null); // selected business_unit_id (null = all)
   const [projects, setProjects] = useState([]);
   // shared cross-filter state
-  const [focus, setFocus] = useState(null); // {pid,name,code} — a project, shared across pages
-  const [hl, setHl] = useState(null);       // {dim,value,label,depth} — cross-cutting highlight, shared
+  const [focus, setFocus] = useState(initial.focus || null); // {pid,name,code} — a project, shared across pages
+  const [hl, setHl] = useState(initial.hl || null);          // {dim,value,label,depth} — cross-cutting highlight, shared
 
   useEffect(() => { listBusinessUnits().then(setBus); projectsLite().then(setProjects); }, []);
+  // persist shared state to the URL hash (debounced via replaceState)
+  useEffect(() => {
+    try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode, bu, focus, hl })))); } catch { /* noop */ }
+  }, [tab, ontoMode, bu, focus, hl]);
 
   return (
     <div className="h-full flex flex-col">
@@ -68,7 +75,7 @@ export default function App() {
         {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
         {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
         {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
-        {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} />}
+        {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} />}
       </main>
       <AskDock projects={projects} focus={focus} setFocus={setFocus} goToOntology={() => setTab("graph")} />
     </div>

@@ -38,6 +38,31 @@ export async function safetyByProject() {
   return data || [];
 }
 
+// Previously-computed-but-unused KPI matviews (migration 007), now surfaced in Analytics.
+export async function wipByProject() {
+  const { data } = await supabase.from("kpi_wip").select("*").order("over_under_billing", { ascending: false });
+  return data || [];
+}
+export async function backlogByBu() {
+  const { data } = await supabase.from("kpi_backlog").select("*").order("backlog", { ascending: false });
+  return data || [];
+}
+export async function pipelineByBu() {
+  const { data } = await supabase.from("kpi_pipeline").select("*").order("weighted_pipeline_value", { ascending: false });
+  return data || [];
+}
+export async function utilizationByBu() {
+  const { data } = await supabase.from("kpi_resource_util").select("*").order("avg_utilization_pct", { ascending: false });
+  return data || [];
+}
+// Time-series snapshots for trend charts (migration 007 kpi_history; backfilled in seed).
+export async function kpiHistory(metric, projectId = null) {
+  let q = supabase.from("kpi_history").select("snapshot_date,project_id,business_unit_id,value").eq("metric", metric).order("snapshot_date");
+  if (projectId) q = q.eq("project_id", projectId);
+  const { data } = await q;
+  return data || [];
+}
+
 // Filtered subgraph for the ontology viewer: { nodes:[...], edges:[...] }
 export async function subgraph({ businessUnit = null, domains = null, entityTypes = null, limit = 1200 } = {}) {
   const { data, error } = await supabase.rpc("kg_subgraph", {
