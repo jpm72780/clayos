@@ -1,0 +1,6 @@
+{"q": "Which Clayco Compute projects are over budget and why?", "expect": ["Aurora", "0.91"], "focus": "DC-001"}
+{"q": "What is the status of the Aurora data center? One sentence.", "expect": ["DC-001"], "focus": "DC-001"}
+{"q": "Which project has the worst safety record?", "expect": ["Aurora", "9.27"]}
+{"q": "Is Cedar Rapids over or under billed?", "expect": ["Cedar Rapids"]}
+{"q": "Across all projects, what is the average RFI turnaround in days by discipline? Top 3.", "expect": ["days"], "tool": "kg_query"}
+{"q": "What is the total contract value by business unit?", "expect": ["Compute"]}

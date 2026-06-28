@@ -235,7 +235,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {filtered.slice(0, 800).map((r) => (
                   <tr key={r.id} onClick={() => openRow(r.id)} className="border-b border-white/5 hover:bg-white/5 cursor-pointer">
                     <td className="px-3 py-1.5"><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(r.type) }} />{r.type}</span></td>
                     <td className="px-3 py-1.5 text-white/90 max-w-[26rem] truncate">{r.name}</td>
@@ -250,6 +250,9 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
                 ))}
               </tbody>
             </table>
+          )}
+          {ents && filtered.length > 800 && (
+            <div className="px-4 py-3 text-xs text-white/40">Showing first 800 of {filtered.length.toLocaleString()} rows — refine the filters or export CSV for the full set.</div>
           )}
         </div>
       </div>
