@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import { listBusinessUnits, projectsLite } from "./lib/api.js";
+import { listBusinessUnits, projectsLite, dataHealth } from "./lib/api.js";
 import GraphView from "./views/GraphView.jsx";
 import LifecycleView from "./views/LifecycleView.jsx";
 import DataView from "./views/DataView.jsx";
@@ -27,8 +27,11 @@ export default function App() {
   // reload never comes back scoped to a stale filter and looking empty)
   const [focus, setFocus] = useState(null); // {pid,name,code} — a project, shared across pages
   const [hl, setHl] = useState(null);       // {dim,value,label,depth} — cross-cutting highlight, shared
+  const [dataErr, setDataErr] = useState(null); // set when the data API is unreachable
 
   useEffect(() => { listBusinessUnits().then(setBus); projectsLite().then(setProjects); }, []);
+  const checkHealth = () => dataHealth().then((h) => setDataErr(h.ok ? null : h.message));
+  useEffect(() => { checkHealth(); }, []);
   // persist ONLY navigational state (which tab / ontology mode) to the URL hash —
   // never the data-scoping filters — so reopening the app always shows full data.
   useEffect(() => {
@@ -68,6 +71,12 @@ export default function App() {
           </select>
         </div>
       </header>
+      {dataErr && (
+        <div className="bg-red-500/15 border-b border-red-500/30 text-red-200 text-sm px-5 py-2 flex items-center gap-3">
+          <span>⚠ Can't reach the data service — <span className="text-red-200/70">{dataErr}</span>. The backend is fine; your network/IP may be blocked from the API (try another network or a VPN).</span>
+          <button onClick={checkHealth} className="ml-auto text-xs px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30">Retry</button>
+        </div>
+      )}
       <main className="flex-1 min-h-0">
         {tab === "graph" && ontoMode === "3d" && (
           <Suspense fallback={<div className="h-full grid place-items-center text-white/50 text-sm">loading 3D…</div>}>

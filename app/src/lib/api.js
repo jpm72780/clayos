@@ -5,6 +5,19 @@ export async function listBusinessUnits() {
   return data || [];
 }
 
+// Lightweight reachability probe — distinguishes "no data" (real) from "can't reach
+// the API" (network/edge block), so the UI can say so instead of showing silent zeros.
+export async function dataHealth() {
+  try {
+    const { data, error } = await supabase.from("business_units").select("id").limit(1);
+    if (error) return { ok: false, message: error.message || "request failed" };
+    if (!data || data.length === 0) return { ok: false, message: "no rows returned" };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e?.message || "Failed to fetch" };
+  }
+}
+
 // Full entity list for the Data Explorer (the whole graph is ~750 rows in the POC).
 export async function allEntities() {
   const { data } = await supabase.from("entities")
