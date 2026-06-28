@@ -77,7 +77,7 @@ export default function App() {
         {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
         {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} />}
       </main>
-      <AskDock projects={projects} focus={focus} setFocus={setFocus} goToOntology={() => setTab("graph")} />
+      <AskDock projects={projects} focus={focus} setFocus={setFocus} setHl={setHl} goToOntology={() => setTab("graph")} />
     </div>
   );
 }

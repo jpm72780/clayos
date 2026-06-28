@@ -3,7 +3,7 @@ import { ask } from "../lib/api.js";
 
 // Small, constant "ask a question" widget in the bottom-right corner of every page.
 // If the answer points at a single project, it focuses + jumps to the ontology.
-export default function AskDock({ projects, focus, setFocus, goToOntology }) {
+export default function AskDock({ projects, focus, setFocus, setHl, goToOntology }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
@@ -17,12 +17,25 @@ export default function AskDock({ projects, focus, setFocus, goToOntology }) {
     try {
       const r = await ask(ctx); const answer = r.answer || r.error || "(no answer)";
       setMsgs((m) => [...m, { role: "assistant", text: answer }]);
-      const text = (question + " " + answer).toLowerCase();
-      const hits = (projects || []).filter((p) => {
-        const kw = (p.name || "").split(" ")[0].toLowerCase();
-        return (p.code && text.includes(p.code.toLowerCase())) || (kw.length > 3 && text.includes(kw));
-      });
-      if (hits.length === 1) { const p = hits[0]; setFocus({ pid: p.id, name: p.name, code: p.code }); goToOntology?.(); }
+      // prefer the agent's structured view hint; fall back to prose matching
+      let drove = false;
+      if (r.focus?.project_code) {
+        const p = (projects || []).find((x) => x.code === r.focus.project_code);
+        if (p) { setFocus({ pid: p.id, name: p.name, code: p.code }); goToOntology?.(); drove = true; }
+      }
+      if (r.highlight?.dim === "masterformat" && setHl) {
+        const v = r.highlight.value;
+        setHl({ dim: "masterformat", value: v, label: v, depth: /00 00$/.test(v.trim()) ? 0 : null });
+        goToOntology?.(); drove = true;
+      }
+      if (!drove) {
+        const text = (question + " " + answer).toLowerCase();
+        const hits = (projects || []).filter((p) => {
+          const kw = (p.name || "").split(" ")[0].toLowerCase();
+          return (p.code && text.includes(p.code.toLowerCase())) || (kw.length > 3 && text.includes(kw));
+        });
+        if (hits.length === 1) { const p = hits[0]; setFocus({ pid: p.id, name: p.name, code: p.code }); goToOntology?.(); }
+      }
     } catch (e) { setMsgs((m) => [...m, { role: "assistant", text: "Error: " + e.message }]); }
     finally { setBusy(false); }
   }

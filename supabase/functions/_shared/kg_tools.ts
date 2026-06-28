@@ -71,8 +71,18 @@ export const KG_TOOLS: AnthropicTool[] = [
   {
     name: "kg_schema",
     description:
-      "Describe the knowledge graph: entity types, edge types, lifecycle domains, and KPI views available. Use to orient before querying.",
+      "Describe the knowledge graph: entity types, edge types, lifecycle domains, tables, and KPI views available. Use to orient before querying (especially before kg_query).",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "kg_query",
+    description:
+      "Run a single read-only SELECT against the clayos schema for ad-hoc aggregate questions the other tools don't cover (e.g. 'average RFI turnaround by discipline', 'count of open quality events by severity per business unit'). SELECT/WITH only, single statement, runs read-only with a 5s timeout and 500-row cap. Call kg_schema first to learn table/column names. Tables include: projects, business_units, organizations, persons, rfis, submittals, daily_logs, safety_events, quality_events, cost_accounts, cost_progress, schedule_activities, contracts, pay_apps, pay_app_lines, building_elements, spaces, documents, pursuits, estimates, requisitions, it_assets, staffing_assignments, plus the KPI views kpi_evm/kpi_wip/kpi_field/kpi_safety/kpi_backlog/kpi_pipeline/kpi_resource_util/kg_bu_rollup/kpi_history. Always schema-qualify (clayos.<table>).",
+    input_schema: {
+      type: "object",
+      properties: { sql: { type: "string", description: "A single SELECT or WITH statement, no trailing semicolon. Schema-qualify tables as clayos.<name>." } },
+      required: ["sql"],
+    },
   },
 ];
 
@@ -90,12 +100,20 @@ const SCHEMA_DOC = {
   domains: ["project", "project_controls", "design", "field_ops", "safety", "quality", "financials",
     "procurement", "business_development", "estimating", "enterprise", "hr", "recruiting", "it"],
   kpi_views: {
-    kpi_evm: "per-project EVM: bac, pv, ev, ac, spi, cpi, eac, pct_complete",
-    kpi_wip: "per-project billing: contract_value, earned_revenue, billings_to_date, over_under_billing, retainage_held",
-    kpi_safety: "per-project safety: hours_worked, recordables, trir, dart",
-    kpi_field: "per-project field: open_rfis, total_rfis, avg_rfi_turnaround_days, open_submittals",
-    kg_bu_rollup: "per-business-unit rollup (incl. descendants): projects, total_contract_value, spi, cpi, trir, open_rfis",
+    kpi_evm: "per-project EVM: project_id, project_name, business_unit_id, bac, pv, ev, ac, spi, cpi, eac, pct_complete",
+    kpi_wip: "per-project billing: project_id, contract_value, earned_revenue, billings_to_date, over_under_billing, retainage_held",
+    kpi_safety: "per-project safety: project_id, hours_worked, recordables, trir, dart",
+    kpi_field: "per-project field: project_id, open_rfis, total_rfis, avg_rfi_turnaround_days, open_submittals",
+    kpi_backlog: "per-business-unit: business_unit_id, contract_value_active, earned_to_date, backlog",
+    kpi_pipeline: "per-business-unit: business_unit_id, pursuits, won, lost, open_pipeline_value, weighted_pipeline_value, win_rate",
+    kpi_resource_util: "per-business-unit: business_unit_id, people, avg_utilization_pct, unstaffed, overallocated",
+    kpi_history: "time-series snapshots: snapshot_date, business_unit_id, project_id, metric (cpi/spi/pct_complete/trir), value",
+    kg_bu_rollup: "per-business-unit rollup (incl. descendants): business_unit_name, projects, total_contract_value, spi, cpi, trir, open_rfis",
   },
+  query_tables: ["projects", "business_units", "organizations", "persons", "rfis", "submittals",
+    "daily_logs", "safety_events", "quality_events", "cost_accounts", "cost_progress", "schedule_activities",
+    "contracts", "pay_apps", "pay_app_lines", "building_elements", "spaces", "documents", "pursuits",
+    "estimates", "requisitions", "it_assets", "staffing_assignments", "classification_codes"],
 };
 
 export type KgContext = { admin: any; business_unit_ids?: string[] };
@@ -161,6 +179,13 @@ export async function executeKgTool(name: string, ctx: KgContext, args: Record<s
       const q = args.query as string;
       const { data } = await admin.from("classification_codes").select("system_id,code,title")
         .or(`code.ilike.%${q}%,title.ilike.%${q}%`).limit(25);
+      return data;
+    }
+
+    case "kg_query": {
+      const sql = String(args.sql || "");
+      const { data, error } = await admin.rpc("kg_query_safe", { p_sql: sql });
+      if (error) throw new Error(`kg_query: ${error.message}`);
       return data;
     }
 

@@ -31,15 +31,17 @@ async function worldState(admin: any): Promise<string> {
 
 function systemPrompt(ws: string): string {
   return [
-    "You are ClayOS, the operating-system agent for Clayco, a large design-build construction firm.",
+    "You are Clayco's data agent — the operating-system assistant for Clayco, a large design-build construction firm.",
     "You answer questions about the company's data — projects, costs, schedule, RFIs, safety, people, pursuits — by calling the read-only kg_* tools. You never invent numbers.",
     "",
     "RULES:",
     "- For ANY numeric/metric question (budget, SPI/CPI, billing, TRIR, RFI counts), call kg_kpi. Do not compute or estimate numbers yourself.",
+    "- For ad-hoc aggregates the curated tools don't cover, use kg_query (read-only SELECT; call kg_schema first for table/column names).",
     "- To find things by meaning, use kg_search; to explore relationships, kg_get_entity then kg_traverse.",
     "- Ground every claim in tool results. Cite the entities/records you used by name (and id where useful).",
     "- Be concise and lead with the answer. Use short tables where helpful.",
     "- If you cannot find something, say so plainly rather than guessing.",
+    "- VIEW CONTROL: if your answer is primarily about ONE project, end with a marker on its own line: @@VIEW project=<CODE>@@ (e.g. @@VIEW project=DC-001@@) so the UI can fly the 3D ontology to it. If it's primarily about one MasterFormat division, add @@VIEW masterformat=<code>@@ (e.g. @@VIEW masterformat=03 00 00@@). Only emit when a single subject clearly dominates; never explain the marker.",
     "",
     "CURRENT WORLD STATE (already fetched for you — use it to orient, but still call tools for specifics):",
     ws,
@@ -104,7 +106,17 @@ Deno.serve(async (req) => {
     }
 
     if (!finalText) finalText = "I wasn't able to complete the analysis within the tool-call limit.";
-    return new Response(JSON.stringify({ answer: finalText, tool_calls: toolCalls }), {
+
+    // structured view-control hints (parsed from the @@VIEW ...@@ markers, then stripped)
+    let focus: { project_code: string } | null = null;
+    let highlight: { dim: string; value: string } | null = null;
+    const fm = finalText.match(/@@VIEW\s+project=([A-Za-z0-9-]+)\s*@@/i);
+    if (fm) focus = { project_code: fm[1] };
+    const hm = finalText.match(/@@VIEW\s+masterformat=([0-9 ]+?)\s*@@/i);
+    if (hm) highlight = { dim: "masterformat", value: hm[1].trim() };
+    finalText = finalText.replace(/@@VIEW[^@]*@@/gi, "").trim();
+
+    return new Response(JSON.stringify({ answer: finalText, tool_calls: toolCalls, focus, highlight }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
