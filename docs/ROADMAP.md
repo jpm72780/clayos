@@ -39,6 +39,18 @@ Scope: all five layers thin, live. **App: https://clayos.pages.dev**
 - [ ] WIP/backlog/TRIR/utilization matviews + kpi_history trend charts
 - [ ] RLS scoping by role (field user vs. exec) + per-turn world-state injection tuned
 
+## Phase 2.5 — Unified 3D "vascular" ontology workspace (session 2, 2026-06-28) — IN PROGRESS
+Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
+- [x] 2D lifecycle "story" view (SVG) — projects as data-mass mounds + bell + backbone lane
+- [x] Cross-cutting "Highlight by" filters (MasterFormat/CSI · UniFormat · Vendor · Employee)
+- [x] 3D ontology (`3d-force-graph`): floating project globe-clusters, lifecycle into depth
+- [x] Selection-driven docked KPI strip + docked Ask agent (click project → rescope)
+- [x] "Vascular" aesthetic: thin vessels, bloom/fog, drifting orbit, time-windowed activity flow
+- [ ] Flow enrichment: pulse colour/speed by domain+recency + hub pulse
+- [ ] Real recency from domain dates (`kg_entity_facts()` migration 010)
+- [ ] $-weighted vessel thickness (contracts/pay-apps/cost/estimates)
+- [ ] Deepen unification: filters also rescope KPIs; agent can drive the view (highlight/focus)
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [ ] Agent eval set (golden Q→A)

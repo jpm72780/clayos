@@ -59,3 +59,23 @@ portable (extensions unqualified; pg_cron guarded). pg_cron is exercised only on
 **Context:** Work spans multiple sessions; need resumability.
 **Decision:** Maintain HANDOFF, ARCHITECTURE, PROGRESS_LOG, DECISIONS, INFRA, ROADMAP in `docs/`.
 Working agent updates them at end of each session (convention in HANDOFF.md).
+
+## ADR-008 — Ontology UX = single linked-selection 3D "vascular" workspace
+**Status:** Accepted (2026-06-28, user-directed)
+**Context:** The original UI was three disconnected tabs (Ontology/Reporting/Ask) over a Sigma
+force-graph. User wants a Palantir-AIP / OrgMap-style single interface where the ontology is the
+centerpiece and "tells a story by looking at it," feels like "flying around interwoven vascular
+systems," and where selection drives everything.
+**Decision:** Build a `3d-force-graph`(+three) **Lifecycle 3D** view as the default ontology mode:
+projects = floating globe-clusters along a lifecycle-into-depth axis, thin vessels with flowing
+particles = recently-moved data points, bloom/fog/auto-orbit. **Selection is the universal filter** —
+clicking a project rescopes a docked KPI strip + the docked agent. Cross-cutting standards/vendor/
+employee keys are highlight filters. Kept the 2D "story" (SVG) and original Sigma "Network" as
+alternate modes. Per-entity facts (activity date, $ amount) for the flow come from a read-only
+`kg_entity_facts()` RPC (migration 010) over domain semantic dates — `entities.updated_at` is all
+seed-time so it can't drive recency.
+**Rationale:** Matches the approved 5-layer vision (ontology→reporting→KPI→agent) as one surface
+instead of tabs; the 3D/vascular metaphor makes data concentration + cross-system flow legible at a
+glance. Force-graph fixes node positions (deterministic layout) yet keeps every edge connected.
+**Trade-offs:** +~1.4 MB lazy 3D chunk; WebGL/bloom cost; flow recency is synthetic-but-real (derived
+from seed dates). Revisit if node counts grow past ~5k (LOD/expand-on-demand).

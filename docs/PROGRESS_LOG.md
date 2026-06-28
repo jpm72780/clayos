@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-06-28 — Session 2 (Opus 4.8): unified 3D "vascular" ontology interface
+
+**Context.** User reviewed the live app and steered the ontology hard toward a Palantir-AIP /
+OrgMap-style **single linked-selection workspace** ("one interface for everything"), with an
+ontology that "tells a story by just looking at it" and "feels like flying around interwoven
+vascular systems that talk to each other."
+
+**Did (frontend only — backend/data/agent untouched this session):**
+- Reshaped the ontology through several iterations, all deployed to https://clayos.pages.dev:
+  1. **2D lifecycle "story"** (`LifecycleView.jsx`, SVG): projects as data-mass mounds along the
+     lifecycle; the portfolio data profile forms a bell; an enterprise-backbone lane underneath.
+  2. **Cross-cutting "Highlight by" filters**: MasterFormat/CSI · UniFormat · Vendor · Employee —
+     light a key across every project at once. Backed by `classification_codes` + `entities.classification_id`
+     via PostgREST (no schema change). Verified: Concrete (03 00 00) lights 5–6 projects.
+  3. **3D** (`Lifecycle3DView.jsx`, `3d-force-graph`+`three`): first as domain-layer towers, then per
+     user direction → **floating globe-clusters in the ether** (x=lifecycle into depth, BU-tinted,
+     faint membrane), all edges connected across clusters.
+  4. **Unified interface**: docked **selection-driven KPI strip** (click a project → CPI/SPI/EAC/RFIs/TRIR
+     rescope; verified Cedar Rapids → CPI 1.06/SPI 1.04/TRIR 4.38) + docked **Ask** box (selection context).
+  5. **"Vascular" aesthetic**: thin vessels, bloom + depth fog, drifting auto-orbit, **flowing particles =
+     data points that "moved" in a time-window** with window/speed/size sliders + live "N moved" count.
+- Toned bloom + added label chips so text stays crisp; fixed a one-time particle init error
+  (self-loop filter + `cooldownTicks(1)`); made decorative meshes non-raycastable so node clicks register.
+- Verified throughout with headless-Chromium (swiftshader) screenshots + driven interactions
+  (KPI rescope, flow-window gating 1h/24h/30d → 0/27/744 moved).
+
+**Deps added:** `3d-force-graph`, `three`, `three-spritetext` (3D chunk lazy-loaded).
+**Decision:** see DECISIONS ADR-008.
+
+**Next (in progress):** enrich the flow — (1) pulse colour/speed by domain+recency + hub pulse,
+(2) **real recency** from domain dates (migration 010 `kg_entity_facts()`), (3) **$-weighted vessel
+thickness**. Then keep deepening the unified workspace.
+
+---
+
 ## 2026-06-27 — Session 1 (Opus 4.8), part 3: Phase 1 LIVE (build + provision)
 
 **Did:**

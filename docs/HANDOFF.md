@@ -3,8 +3,8 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-27 (session 1, end — final smoke test passed, docs reviewed)
-**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE & verified
+**Last updated:** 2026-06-28 (session 2 — unified 3D "vascular" ontology interface, live)
+**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE & verified; session 2 reshaped the ontology UX
 **Repo:** `/home/clawd/projects/clayos` → pushed to **github.com/jpm72780/clayos** (private, `main`)
 **Live app:** **https://clayos.pages.dev** (HTTP 200)
 
@@ -29,7 +29,20 @@ new repo + new Supabase project · Postgres-native graph · depth-first (3 BUs, 
 
 ## Current snapshot — where we are RIGHT NOW
 
-**Phase:** Phase 1 (vertical slice) — **COMPLETE & DEPLOYED LIVE.** All five layers demoable end-to-end.
+**Phase:** Phase 1 complete & live. **Session 2 = ontology UX overhaul** toward a single
+Palantir/OrgMap-style **linked-selection workspace** (user direction: "one interface for everything").
+
+**Session-2 frontend state (all live at https://clayos.pages.dev → Ontology tab):**
+- **Three ontology modes** (toggle in the Ontology tab header): **Lifecycle 3D** (default) · **2D story** · **Network** (the original Sigma graph).
+- **Lifecycle 3D** = the centerpiece. Projects are **floating "vascular" globe-clusters** in 3D (x=lifecycle receding into depth, sized by data, tinted by business unit, faint membrane), connected by **thin vessels** with **flowing cyan particles = data points that "moved" in a time window**. Bloom + depth fog + drifting auto-orbit camera. Built on `3d-force-graph` + `three` + `three-spritetext` (added deps; lazy-loaded chunk).
+- **Selection drives everything (the unification):** click a project globe → the docked **KPI strip** (bottom) rescopes to that project (CPI/SPI/EAC/RFIs/TRIR from the matviews) and the docked **Ask** box pre-loads its context. "↩ enterprise" resets.
+- **Cross-cutting "Highlight by" rail:** MasterFormat (CSI) · UniFormat · Vendor · Employee — highlights that key across **every** project at once (highlight, don't remove). Backed by `classification_codes` + `entities.classification_id` (read via PostgREST, no schema change).
+- **Flow controls panel:** time-window (1h→30d) · speed · size sliders; live "N moved" count.
+- New frontend files: `app/src/views/Lifecycle3DView.jsx` (3D), `app/src/views/LifecycleView.jsx` (2D), plus `App.jsx`/`api.js` wiring.
+
+*(Original Phase-1 snapshot below still holds — backend/agent/data unchanged this session.)*
+
+**Phase 1 (vertical slice):** **COMPLETE & DEPLOYED LIVE.** All five layers demoable end-to-end.
 
 **Live system (all working):**
 - **App:** https://clayos.pages.dev (Cloudflare Pages) — Ontology viewer (Sigma), Reporting (Recharts), Ask ClayOS (chat).
@@ -86,7 +99,17 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
 
 ---
 
-## Next actions (Phase 2 — widen + deepen)
+## Next actions (session 3 — in progress: enrich the flow)
+Active thread (user: "do all of them, keep working til done"):
+1. **Flow means more** — pulse colour by domain/type, pulse speed by recency, hub pulse on activity.
+2. **Real recency** — flow window driven by *actual* record dates (migration 010 `kg_entity_facts()` →
+   per-entity `activity_at`), not the synthetic hash. (`entities.updated_at` is all seed-time, so real
+   recency must come from domain semantic dates: rfis/daily_logs/safety/pay_apps/contracts/schedule…)
+3. **Vessel thickness by $** — money-bearing links (contracts.value, cost_accounts.bac, pay_apps,
+   estimates/pursuits, projects.contract_value) carry fatter vessels (same `kg_entity_facts()` `amount`).
+Then: commit + redeploy; keep deepening the unified interface (filters also rescope KPIs; agent can drive the view).
+
+## Backlog (original Phase 2 — widen + deepen)
 
 1. **Visually verify the UI** in a browser (or the /run skill): open https://clayos.pages.dev — confirm
    the Sigma graph renders + drill-down works, dashboards render, chat answers. Fix any runtime issues.

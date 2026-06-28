@@ -50,6 +50,20 @@ export async function neighbors(entityId) {
   return data || { nodes: [], edges: [] };
 }
 
+// Cross-cutting classification dimensions (MasterFormat/CSI, UniFormat).
+export async function classificationCodes() {
+  const { data } = await supabase.from("classification_codes")
+    .select("id,system_id,code,title,depth").order("system_id").order("code");
+  return data || [];
+}
+
+// id -> classification_id for every classified entity (for highlight filtering).
+export async function entityClassMap() {
+  const { data } = await supabase.from("entities")
+    .select("id,classification_id").not("classification_id", "is", null);
+  return data || [];
+}
+
 export async function ask(question, history = []) {
   const r = await fetch(`${FUNCTIONS_URL}/agent-ask`, {
     method: "POST",
