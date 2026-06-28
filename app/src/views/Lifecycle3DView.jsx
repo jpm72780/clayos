@@ -193,7 +193,6 @@ export default function Lifecycle3DView({ businessUnit }) {
 
   const model = useMemo(() => (data?.nodes?.length ? classify(data) : null), [data]);
   const codesById = useMemo(() => new Map(codes.map((c) => [c.id, c])), [codes]);
-  const kpis = useMemo(() => computeKpis(focus, evm, field, safety), [focus, evm, field, safety]);
 
   const graph = useMemo(() => {
     if (!model || !facts) return null;
@@ -233,11 +232,33 @@ export default function Lifecycle3DView({ businessUnit }) {
   }, [model, hl, classByEntity, codesById]);
   useEffect(() => { hotRef.current = hot; }, [hot]);
 
+  // KPI strip scope: an active highlight rolls up that cross-cutting slice; else a
+  // focused project; else the whole enterprise. (After `hot` so it's initialised.)
+  const strip = useMemo(() => {
+    if (hl && hot && model) {
+      let amount = 0; const counts = {};
+      for (const id of hot.set) {
+        const a = facts?.amount.get(id); if (a) amount += a;
+        const t = model.nodesById.get(id)?.type; if (t) counts[t] = (counts[t] || 0) + 1;
+      }
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+      return { mode: "slice", scope: hl.label, dim: SYSTEM_LABEL[hl.dim] || (hl.dim === "vendor" ? "Vendor" : "Employee"), amount, points: hot.count, projects: hot.pids.size, top };
+    }
+    return { mode: focus ? "project" : "enterprise", ...computeKpis(focus, evm, field, safety) };
+  }, [hl, hot, focus, facts, model, evm, field, safety]);
+
   const nodeColor = (n) => { const h = hotRef.current; return h && !h.set.has(n.id) ? DIM : colorFor(n.type); };
   const nodeVal = (n) => { const base = n.type === "Project" ? 34 : 3; const h = hotRef.current; return h && h.set.has(n.id) ? base * 2.2 : base; };
   // pulses move faster the more recently their data point moved (within the window)
   const particleSpeed = (l) => flowSpeedRef.current * (1 + Math.min(1, Math.max(0, 1 - l.rh / windowRef.current)) * 2.5);
   const hubIntensityRef = useRef(new Map()); // pid -> 0..1 recent-activity intensity, drives hub pulse
+  const clusterCentersRef = useRef(new Map()); // cid -> {center, radius}, for camera fly-to
+  const flyTo = (pid) => {
+    const g = fgRef.current, c = clusterCentersRef.current.get(pid);
+    if (!g || !c) return;
+    const d = (c.radius || 60) * 3.5 + 220;
+    g.cameraPosition({ x: c.center.x + d * 0.25, y: c.center.y + d * 0.22, z: c.center.z + d }, c.center, 1200);
+  };
 
   useEffect(() => {
     if (!graph || !mountRef.current) return;
@@ -259,8 +280,8 @@ export default function Lifecycle3DView({ businessUnit }) {
       .linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0))
       .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
       .onNodeClick(async (n) => {
-        // clicking anywhere in a project's globe focuses that project
-        if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); }
+        // clicking anywhere in a project's globe focuses that project + flies to it
+        if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) { setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); flyTo(proj.pid); } }
         setSelected({ loading: true });
         const d = await entityDetail(n.id); setSelected(d || { missing: true });
       });
@@ -317,6 +338,7 @@ export default function Lifecycle3DView({ businessUnit }) {
     };
     animate();
 
+    clusterCentersRef.current = new Map(graph.clusters.map((c) => [c.cid, c]));
     const ctr = graph.centroid;
     g.cameraPosition({ x: ctr.x + 220, y: 240, z: ctr.z + 980 }, ctr, 0);
     const controls = g.controls();
@@ -366,8 +388,17 @@ export default function Lifecycle3DView({ businessUnit }) {
     setAskInput(""); setAskOpen(true);
     const ctx = focus ? `Regarding the ${focus.name} project: ${question}` : question;
     setAskMsgs((m) => [...m, { role: "user", text: question }]); setAskBusy(true);
-    try { const r = await ask(ctx); setAskMsgs((m) => [...m, { role: "assistant", text: r.answer || r.error || "(no answer)" }]); }
-    catch (e) { setAskMsgs((m) => [...m, { role: "assistant", text: "Error: " + e.message }]); }
+    try {
+      const r = await ask(ctx); const answer = r.answer || r.error || "(no answer)";
+      setAskMsgs((m) => [...m, { role: "assistant", text: answer }]);
+      // agent drives the view: if the exchange points at a single project, focus + fly there
+      const text = (question + " " + answer).toLowerCase();
+      const hits = (model?.projects || []).filter((p) => {
+        const kw = (p.name || "").split(" ")[0].toLowerCase();
+        return (p.code && text.includes(p.code.toLowerCase())) || (kw.length > 3 && text.includes(kw));
+      });
+      if (hits.length === 1) { const p = hits[0]; setFocus({ pid: p.pid, name: p.name, code: p.code }); flyTo(p.pid); }
+    } catch (e) { setAskMsgs((m) => [...m, { role: "assistant", text: "Error: " + e.message }]); }
     finally { setAskBusy(false); }
   }
 
@@ -443,18 +474,30 @@ export default function Lifecycle3DView({ businessUnit }) {
         {/* selection-driven KPI strip */}
         <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pt-6 pb-2">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] uppercase tracking-wide text-white/45">Live KPIs ·</span>
-            <span className="text-sm text-white/85 font-medium">{kpis.scope}</span>
-            {focus && <button onClick={() => setFocus(null)} className="text-[11px] text-amber-300/80 hover:text-amber-200">↩ enterprise</button>}
+            <span className="text-[11px] uppercase tracking-wide text-white/45">{strip.mode === "slice" ? "Slice ·" : "Live KPIs ·"}</span>
+            <span className="text-sm text-white/85 font-medium">{strip.mode === "slice" ? `${strip.dim} · ${strip.scope}` : strip.scope}</span>
+            {strip.mode === "slice" && <button onClick={() => setHl(null)} className="text-[11px] text-amber-300/80 hover:text-amber-200">✕ clear</button>}
+            {strip.mode === "project" && <button onClick={() => setFocus(null)} className="text-[11px] text-amber-300/80 hover:text-amber-200">↩ enterprise</button>}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Kpi label="Contract / BAC" value={fmt$(kpis.bac)} />
-            <Kpi label="EAC" value={fmt$(kpis.eac)} warn={kpis.eac > kpis.bac} sub={kpis.eac > kpis.bac ? `+${fmt$(kpis.eac - kpis.bac)} over` : "on budget"} />
-            <Kpi label="CPI" value={kpis.cpi?.toFixed(2) ?? "—"} warn={kpis.cpi < 1} />
-            <Kpi label="SPI" value={kpis.spi?.toFixed(2) ?? "—"} warn={kpis.spi < 1} />
-            <Kpi label="Open RFIs" value={kpis.openRfis ?? "—"} sub={kpis.totalRfis ? `of ${kpis.totalRfis}` : null} />
-            <Kpi label="TRIR" value={kpis.trir != null ? kpis.trir.toFixed(2) : "—"} warn={kpis.trir > 3} />
-            {!focus && <Kpi label="Projects" value={kpis.projects ?? "—"} />}
+            {strip.mode === "slice" ? (
+              <>
+                <Kpi label="$ carried" value={fmt$(strip.amount)} />
+                <Kpi label="Data points" value={strip.points} />
+                <Kpi label="Projects touched" value={strip.projects} />
+                {strip.top.map(([t, c]) => <Kpi key={t} label={t} value={c} />)}
+              </>
+            ) : (
+              <>
+                <Kpi label="Contract / BAC" value={fmt$(strip.bac)} />
+                <Kpi label="EAC" value={fmt$(strip.eac)} warn={strip.eac > strip.bac} sub={strip.eac > strip.bac ? `+${fmt$(strip.eac - strip.bac)} over` : "on budget"} />
+                <Kpi label="CPI" value={strip.cpi?.toFixed(2) ?? "—"} warn={strip.cpi < 1} />
+                <Kpi label="SPI" value={strip.spi?.toFixed(2) ?? "—"} warn={strip.spi < 1} />
+                <Kpi label="Open RFIs" value={strip.openRfis ?? "—"} sub={strip.totalRfis ? `of ${strip.totalRfis}` : null} />
+                <Kpi label="TRIR" value={strip.trir != null ? strip.trir.toFixed(2) : "—"} warn={strip.trir > 3} />
+                {strip.mode === "enterprise" && <Kpi label="Projects" value={strip.projects ?? "—"} />}
+              </>
+            )}
           </div>
         </div>
 

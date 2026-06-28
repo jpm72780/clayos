@@ -108,10 +108,18 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
 3. ✓ **Vessel thickness by $** — log-scaled width from `kg_entity_facts().amount` (contracts.value,
    cost_accounts.bac, pay_apps via lines, estimates/pursuits, projects.contract_value).
 
+## Unification deepened — DONE (2026-06-28) ✓ live
+- ✓ **Filters rescope the KPI strip**: an active Highlight-by selection turns the strip into a **slice
+  rollup** — $ carried (from `kg_entity_facts().amount`), data points, projects touched, type breakdown.
+  (Concrete = $421M across 6 projects, RFI 27 / Work 6 / CostAccount 6.)
+- ✓ **Camera fly-to** a project's cluster when it gains focus (click or agent).
+- ✓ **Agent drives the view**: if an answer/question names exactly one project, it focuses + flies there
+  (verified: "status of Riverside?" → auto-focus Riverside). Pure client-side text match on project
+  code/keyword — no edge-function change.
+
 ## Next actions
-- **Deepen the unification**: make the "Highlight by" filters also **rescope the KPI strip** (e.g. pick a CSI
-  division → portfolio cost rolled up by it); let the **agent drive the view** (answer → highlight/focus the
-  relevant systems). 
+- Agent could drive the **highlight** too (answer mentions a CSI division / vendor → set that filter), and
+  ideally return a **structured focus hint** from the edge function instead of text-matching.
 - Then: original Phase-2 backlog below (text-to-SQL `kg_query`, RLS scoping, CI/pg_cron, deeper seed).
 
 ## Backlog (original Phase 2 — widen + deepen)

@@ -49,7 +49,10 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
 - [x] Flow enrichment: pulse colour by domain + speed by recency + hub pulse on active projects
 - [x] Real recency from domain dates (`kg_entity_facts()` migration 010; flow window = actual seed dates)
 - [x] $-weighted vessel thickness (contracts/pay-apps/cost/estimates, log-scaled)
-- [ ] Deepen unification: filters also rescope KPIs; agent can drive the view (highlight/focus)
+- [x] Deepen unification: Highlight-by filters rescope the KPI strip (slice rollup: $ carried / data
+      points / projects / type breakdown); camera fly-to a project on focus; agent drives the view
+      (answer names a project → focus + fly there). Verified: Concrete slice = $421M / 6 projects;
+      "status of Riverside?" → auto-focus Riverside.
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
