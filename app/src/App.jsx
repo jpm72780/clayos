@@ -21,17 +21,19 @@ export default function App() {
   const [tab, setTab] = useState(initial.tab || "graph");
   const [ontoMode, setOntoMode] = useState(initial.ontoMode || "3d"); // '3d' | 'lifecycle' | 'network'
   const [bus, setBus] = useState([]);
-  const [bu, setBu] = useState(initial.bu ?? null); // selected business_unit_id (null = all)
+  const [bu, setBu] = useState(null); // selected business_unit_id (null = all)
   const [projects, setProjects] = useState([]);
-  // shared cross-filter state
-  const [focus, setFocus] = useState(initial.focus || null); // {pid,name,code} — a project, shared across pages
-  const [hl, setHl] = useState(initial.hl || null);          // {dim,value,label,depth} — cross-cutting highlight, shared
+  // shared cross-filter state — in-session only (NOT persisted to the URL, so a
+  // reload never comes back scoped to a stale filter and looking empty)
+  const [focus, setFocus] = useState(null); // {pid,name,code} — a project, shared across pages
+  const [hl, setHl] = useState(null);       // {dim,value,label,depth} — cross-cutting highlight, shared
 
   useEffect(() => { listBusinessUnits().then(setBus); projectsLite().then(setProjects); }, []);
-  // persist shared state to the URL hash (debounced via replaceState)
+  // persist ONLY navigational state (which tab / ontology mode) to the URL hash —
+  // never the data-scoping filters — so reopening the app always shows full data.
   useEffect(() => {
-    try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode, bu, focus, hl })))); } catch { /* noop */ }
-  }, [tab, ontoMode, bu, focus, hl]);
+    try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode })))); } catch { /* noop */ }
+  }, [tab, ontoMode]);
 
   return (
     <div className="h-full flex flex-col">
