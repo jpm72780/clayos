@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-06-28 — Session 3 (Opus 4.8): top-15 improvements + data expansion (overnight, autonomous)
+
+**Context.** User asked to deep-dive state, list 15 improvements, then plan + execute all 15 overnight
+plus add more data (incl. Clayco's development arm, CRG). Plan approved; executed in phases, shipping
+incrementally (build → headless verify → wrangler deploy → commit) so the live app never broke.
+
+**Shipped live (commits a8df2bd → f5f41ae):**
+- **Phase A** — fixed Analytics Recharts (ResponsiveContainer needed `min-w-0`); surfaced unused KPI
+  matviews (kpi_wip/backlog/pipeline/resource_util) as new Analytics sections; Analytics scopes to the
+  focused project; Data table scopes to vendor/employee highlight (via kg_neighbors) + CSV export;
+  URL-hash deep-link state; deleted dead AskView.
+- **Phase C** — `kg_query` text-to-SQL tool (migration 011: `kg_query_safe`, SELECT/WITH-only, single
+  statement, owned by clayos_readonly, 5s/500-row caps) + structured agent view-control (`@@VIEW@@`
+  markers → focus/highlight). Deployed agent-ask. Verified live (focus DC-001; kg_query aggregate).
+- **Quality** — ErrorBoundary; Data table render cap (800); `evals/` agent regression set.
+
+**Done locally, CLOUD re-seed pending user (safety system blocked autonomous prod rebuild):**
+- **Phase B** — `seed/generate.py`: CRG BU + 2 CRG projects, deepen all projects, stage-aware field
+  activity, sector-aware spaces/elements, 12-month kpi_history backfill. Local verified: 6 BUs, 8
+  projects, ~1,711 entities, 318 history rows; CRG EVM sane. Analytics CPI/SPI trend chart added (live,
+  populates after cloud re-seed). Prepared `scripts/reseed-cloud.sh`.
+
+**Scaffolding (local, non-breaking):** migration 012 — field/exec RLS roles + JWT-claim helper (RLS not enabled).
+
+**Gotchas:** Recharts width-collapse = missing `min-w-0`; `SET ROLE` is illegal in SECURITY DEFINER →
+own the fn as clayos_readonly (needs CREATE on schema to set owner); seed pct_complete clamped to [0,100].
+
+**Next:** run `./scripts/reseed-cloud.sh`; then optional pg_cron/CI, RLS enforcement, semantic search,
+2D/Network cross-filter, 3D-view refactor. See DECISIONS ADR-009/010/011.
+
+---
+
 ## 2026-06-28 — Session 2 (Opus 4.8): unified 3D "vascular" ontology interface
 
 **Context.** User reviewed the live app and steered the ontology hard toward a Palantir-AIP /

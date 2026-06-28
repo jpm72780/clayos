@@ -67,9 +67,25 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
 - [x] **Rebrand**: Clayco Ontology / Clayco Data / Clayco Analytics; dropped "ClayOS"; the agent is now
       a small constant **Ask dock** in the bottom-right corner on every page (replaces the Ask tab).
 
+## Phase 2.6 — Top-15 improvements (session 3, 2026-06-28)
+Shipped live:
+- [x] Fix Analytics charts (Recharts `min-w-0`)
+- [x] Surface hidden KPI matviews (WIP / backlog / pipeline / utilization) in Analytics
+- [x] Cross-filter: Analytics scopes to focus; Data scopes to vendor/employee highlight
+- [x] CSV export + URL-hash deep-link state
+- [x] `kg_query` text-to-SQL agent tool (guarded) + structured agent view-control (`@@VIEW@@`)
+- [x] ErrorBoundary; Data table render cap; agent eval set (`evals/`)
+Local-done, cloud re-seed pending user (`scripts/reseed-cloud.sh`):
+- [x] Data expansion: CRG dev BU + 2 projects, deepen all, stage-aware activity (~1,711 entities)
+- [x] kpi_history trend backfill + Analytics CPI/SPI trend chart
+Designed / deferred:
+- [~] RLS field/exec scaffolding (migration 012, not enabled)
+- [ ] Enable pg_cron + CI auto-deploy (#4 — CI blocked by token scope)
+- [ ] Semantic search in the UI (#11); 2D/Network cross-filter; split Lifecycle3DView (#14b)
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
-- [ ] Agent eval set (golden Q→A)
+- [x] Agent eval set (golden Q→A) — `evals/`
 - [ ] Executive portfolio dashboard
 
 ## Phase 4+ — Roadmap (post-POC)

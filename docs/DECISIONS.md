@@ -60,6 +60,38 @@ portable (extensions unqualified; pg_cron guarded). pg_cron is exercised only on
 **Decision:** Maintain HANDOFF, ARCHITECTURE, PROGRESS_LOG, DECISIONS, INFRA, ROADMAP in `docs/`.
 Working agent updates them at end of each session (convention in HANDOFF.md).
 
+## ADR-009 — `kg_query` text-to-SQL via a SECURITY DEFINER fn owned by clayos_readonly
+**Status:** Accepted (2026-06-28)
+**Context:** The agent needed ad-hoc aggregates beyond the curated kg_* tools, without a write path.
+**Decision:** `clayos.kg_query_safe(text)` (migration 011): validates SELECT/WITH-only + single
+statement + forbidden-keyword backstop, runs with a 5s timeout + 500-row cap, and is **owned by the
+low-privilege `clayos_readonly` role** (SECURITY DEFINER) so it can only read the clayos schema.
+**Rationale:** `SET ROLE` is illegal inside SECURITY DEFINER, so privilege reduction is achieved by
+*ownership* instead — a crafted `auth.*`/`pg_authid` read fails with permission denied. Owning an
+object requires CREATE on the schema, so clayos_readonly is granted CREATE (harmless: NOLOGIN, used
+only as this fn's definer). Verified writes/multi-statement/sensitive reads are all rejected.
+
+## ADR-010 — Data expansion: CRG dev arm + deepen all + synthetic trend history
+**Status:** Accepted (2026-06-28, user-requested)
+**Context:** User wanted more data, incl. Clayco's development arm (CRG). Original seed had 2 of 6
+projects deep and no time-series.
+**Decision:** Add CRG (real_estate BU) with two CRG-branded synthetic projects; deepen all projects;
+gate field-activity entities (daily logs/safety/quality) by lifecycle stage for realism; backfill
+12 monthly `kpi_history` snapshots/project for trend charts. Determinism preserved (seed 42 + uuid5).
+**Rationale:** Richer, more realistic demo across all five layers. `snapshot_kpis()` only captures
+"now", so history is synthesised in the seed. **Cloud apply is gated** (safety system blocks
+autonomous prod rebuild) → `scripts/reseed-cloud.sh` for the user. Re-seed is reproducible, not
+truly irreversible (old generator is in git history).
+
+## ADR-011 — RLS role-scoping shipped as inert scaffolding (not enforced)
+**Status:** Accepted (2026-06-28)
+**Context:** Multi-tenant credibility wants field-vs-exec scoping, but the live app reads via the anon
+key — enabling RLS naively would blank it.
+**Decision:** Migration 012 creates `clayos_field`/`clayos_exec` roles + `app_role()`/`app_bu()` JWT-claim
+helpers and documents the enable-path, but does **not** enable RLS on any table.
+**Rationale:** Ships the design without risking the live demo; enabling enforcement is a deliberate,
+verified follow-up.
+
 ## ADR-008 — Ontology UX = single linked-selection 3D "vascular" workspace
 **Status:** Accepted (2026-06-28, user-directed)
 **Context:** The original UI was three disconnected tabs (Ontology/Reporting/Ask) over a Sigma

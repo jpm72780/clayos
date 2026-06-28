@@ -3,8 +3,52 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-28 (session 2 — unified 3D "vascular" ontology interface, live)
-**Updated by:** Claude (Opus 4.8) session — Phase 1 LIVE & verified; session 2 reshaped the ontology UX
+**Last updated:** 2026-06-28 (session 3 — overnight "top-15 improvements" + data expansion)
+**Updated by:** Claude (Opus 4.8) session — Phases A–C shipped live; data expansion local-verified
+
+---
+
+## ⚡ Session 3 — what shipped overnight (read this first)
+Worked the approved 15-improvement plan (`/home/clawd/.claude/plans/melodic-herding-truffle.md`).
+**All live at https://clayos.pages.dev unless noted.**
+
+- **Phase A (shipped):** fixed the Analytics charts (Recharts needed `min-w-0`); surfaced the
+  previously-unused KPI matviews (WIP over/under-billing, backlog/pipeline/win-rate, workforce
+  utilization); Analytics honors the focused project; Data table scopes to a vendor/employee
+  highlight + CSV export; shared view state (tab/onto-mode/bu/focus/hl) encoded in the URL hash
+  (deep-links); removed dead AskView.
+- **Phase B (data) — local done & verified; CLOUD PENDING YOUR GO-AHEAD:** `seed/generate.py` now
+  adds **CRG — Clayco Real Estate Group** (development arm) as a BU with two CRG-branded synthetic
+  projects (*The Cubes at Stateline*, *Chapter at University Commons*), **deepens all projects**
+  (was 2 of 6), makes field activity realistic by stage, and **backfills 12 months of kpi_history**
+  for trend charts. Local: **6 BUs, 8 projects, ~1,711 entities** (was 750). Analytics has a new
+  CPI/SPI **trend line**. ⚠️ The **cloud re-seed was blocked by the safety system** (it won't wipe
+  prod autonomously). Run it yourself: **`./scripts/reseed-cloud.sh`** (drops+reloads the live demo
+  data, drains embeddings, ~2–3 min). Until then the live app still shows the old 6-project data.
+- **Phase C (shipped & verified live):** **`kg_query`** text-to-SQL agent tool (migration 011 —
+  guarded read-only SELECT, owned by `clayos_readonly`, 5s/500-row caps; verified writes / multi-
+  statement / `auth.*` reads all rejected) + **structured agent view-control** (agent emits
+  `@@VIEW project=…/masterformat=…@@`, parsed server-side → `focus`/`highlight`; AskDock flies/
+  highlights). Verified live: "status of Aurora" → focus DC-001; "avg RFI turnaround by discipline"
+  → `kg_schema`+`kg_query`.
+- **Quality:** app `ErrorBoundary`; Data table render-capped at 800 rows (sort/quant/CSV still full);
+  agent regression eval set (`evals/`).
+- **Scaffolding (local only, non-breaking):** migration 012 = field/exec RLS roles + JWT-claim helper
+  (RLS **not** enabled — enable-path documented).
+
+### Your one action when you wake
+`./scripts/reseed-cloud.sh` → refresh the app to see the CRG projects, the deeper data, and the
+populated trend charts live. (Everything else is already live.)
+
+### Deferred / blocked (with reasons)
+- **Cloud re-seed** — safety system blocks autonomous prod-DB rebuild → one-command script ready.
+- **CI auto-deploy (#4)** — the `gh` token still lacks `workflow` scope (workflow parked in `docs/deploy/`).
+- **pg_cron (#4)** — schedules are in migration 009 (guarded); enable the extension on the cloud project
+  then re-run 009's block to auto-refresh KPIs.
+- **RLS enforcement (#9)** — scaffolding in migration 012; enabling policies is deliberate (would change
+  what the anon key sees) — verify the read path first.
+- **Semantic search in the UI (#11)** & **2D/Network cross-filter** & **3D-view module split (#14b)** —
+  not done; noted in ROADMAP.
 **Repo:** `/home/clawd/projects/clayos` → pushed to **github.com/jpm72780/clayos** (private, `main`)
 **Live app:** **https://clayos.pages.dev** (HTTP 200)
 
