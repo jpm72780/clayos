@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { listBusinessUnits } from "./lib/api.js";
 import GraphView from "./views/GraphView.jsx";
 import LifecycleView from "./views/LifecycleView.jsx";
+import DataView from "./views/DataView.jsx";
 import DashboardView from "./views/DashboardView.jsx";
 import AskView from "./views/AskView.jsx";
 
@@ -9,6 +10,7 @@ const Lifecycle3DView = lazy(() => import("./views/Lifecycle3DView.jsx"));
 
 const TABS = [
   { id: "graph", label: "Ontology" },
+  { id: "data", label: "Data" },
   { id: "dashboard", label: "Reporting" },
   { id: "ask", label: "Ask ClayOS" },
 ];
@@ -65,6 +67,7 @@ export default function App() {
         )}
         {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
         {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
+        {tab === "data" && <DataView businessUnit={bu} />}
         {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} />}
         {tab === "ask" && <AskView />}
       </main>

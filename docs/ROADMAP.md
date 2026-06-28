@@ -53,6 +53,10 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
       points / projects / type breakdown); camera fly-to a project on focus; agent drives the view
       (answer names a project → focus + fly there). Verified: Concrete slice = $421M / 6 projects;
       "status of Riverside?" → auto-focus Riverside.
+- [x] **Data Explorer** (new "Data" tab, `DataView.jsx`): every entity as one sortable/filterable table
+      (Type/Name/Domain/Project/BU/CSI/$ amount/last activity) + row→detail. 750 rows, $10.58B total.
+- [x] Flow UX: slower/larger pulses by default, 60-day default window; greyed-out (non-highlighted)
+      nodes become non-hoverable/non-selectable (raycast off) so the colored ones are easy to grab.
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass

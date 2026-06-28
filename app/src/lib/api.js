@@ -5,6 +5,19 @@ export async function listBusinessUnits() {
   return data || [];
 }
 
+// Full entity list for the Data Explorer (the whole graph is ~750 rows in the POC).
+export async function allEntities() {
+  const { data } = await supabase.from("entities")
+    .select("id,entity_type,domain,label,business_unit_id,source_table,classification_id,properties")
+    .order("entity_type");
+  return data || [];
+}
+
+export async function projectsLite() {
+  const { data } = await supabase.from("projects").select("id,code,name");
+  return data || [];
+}
+
 export async function buRollup() {
   const { data } = await supabase.from("kg_bu_rollup").select("*").order("total_contract_value", { ascending: false });
   return data || [];

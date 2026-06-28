@@ -130,7 +130,8 @@ const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(0) + "M
 // Flow time-window (hours back from now). Recency is REAL — derived from each
 // record's semantic date via kg_entity_facts() (migration 010).
 const D = 24;
-const WINDOWS = [{ h: 7 * D, label: "7d" }, { h: 30 * D, label: "30d" }, { h: 90 * D, label: "90d" }, { h: 180 * D, label: "6mo" }, { h: 365 * D, label: "1y" }, { h: 1e9, label: "all" }];
+const WINDOWS = [{ h: 7 * D, label: "7d" }, { h: 30 * D, label: "30d" }, { h: 60 * D, label: "60d" }, { h: 90 * D, label: "90d" }, { h: 180 * D, label: "6mo" }, { h: 365 * D, label: "1y" }, { h: 1e9, label: "all" }];
+const NOOP = () => {}; // raycast override for greyed-out nodes
 // vessel thickness grows with the dollars a record carries (log scale)
 const vesselWidth = (amt) => (amt > 0 ? 0.12 + Math.max(0, Math.log10(amt) - 3.5) * 0.28 : 0.12);
 
@@ -153,7 +154,7 @@ function computeKpis(focus, evm, field, safety) {
 
 export default function Lifecycle3DView({ businessUnit }) {
   const mountRef = useRef(null), fgRef = useRef(null), hotRef = useRef(null), controlsRef = useRef(null);
-  const windowRef = useRef(30 * 24), flowSpeedRef = useRef(0.0035), flowSizeRef = useRef(1.1);
+  const windowRef = useRef(60 * 24), flowSpeedRef = useRef(0.0018), flowSizeRef = useRef(2.0);
   const [data, setData] = useState(null);
   const [codes, setCodes] = useState([]);
   const [classByEntity, setClassByEntity] = useState(new Map());
@@ -165,9 +166,9 @@ export default function Lifecycle3DView({ businessUnit }) {
   const [loading, setLoading] = useState(true);
   const [spin, setSpin] = useState(true);
   // flow controls (recent-activity particles)
-  const [windowIdx, setWindowIdx] = useState(1); // 30d
-  const [flowSpeed, setFlowSpeed] = useState(0.0035);
-  const [flowSize, setFlowSize] = useState(1.1);
+  const [windowIdx, setWindowIdx] = useState(2); // 60d
+  const [flowSpeed, setFlowSpeed] = useState(0.0018);
+  const [flowSize, setFlowSize] = useState(2.0);
   // docked agent
   const [askOpen, setAskOpen] = useState(false);
   const [askMsgs, setAskMsgs] = useState([]); const [askInput, setAskInput] = useState(""); const [askBusy, setAskBusy] = useState(false);
@@ -270,7 +271,7 @@ export default function Lifecycle3DView({ businessUnit }) {
       .graphData({ nodes: graph.nodes, links: graph.links })
       .cooldownTicks(1) // nodes are pinned (fx/fy/fz); 1 tick initialises link curves for particles
       .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(9)
-      .nodeLabel((n) => `<div style="font-size:12px"><b>${n.label}</b><br/><span style="opacity:.6">${n.type} · ${n.domain}</span></div>`)
+      .nodeLabel((n) => { const h = hotRef.current; if (h && !h.set.has(n.id)) return ""; return `<div style="font-size:12px"><b>${n.label}</b><br/><span style="opacity:.6">${n.type} · ${n.domain}</span></div>`; })
       .linkCurvature(0.22)
       // paths are a quiet, thin structure; thickness grows with the $ a record carries
       .linkWidth((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? 0.9 : 0.1; return vesselWidth(l.amt); })
@@ -280,6 +281,7 @@ export default function Lifecycle3DView({ businessUnit }) {
       .linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0))
       .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
       .onNodeClick(async (n) => {
+        const h = hotRef.current; if (h && !h.set.has(n.id)) return; // greyed-out → not selectable
         // clicking anywhere in a project's globe focuses that project + flies to it
         if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) { setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); flyTo(proj.pid); } }
         setSelected({ loading: true });
@@ -360,7 +362,16 @@ export default function Lifecycle3DView({ businessUnit }) {
     };
   }, [graph]);
 
-  useEffect(() => { const g = fgRef.current; if (g) g.nodeColor(nodeColor).nodeVal(nodeVal).linkColor(g.linkColor()).linkWidth(g.linkWidth()).linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)); }, [hot]);
+  useEffect(() => {
+    const g = fgRef.current; if (!g) return;
+    g.nodeColor(nodeColor).nodeVal(nodeVal).linkColor(g.linkColor()).linkWidth(g.linkWidth()).linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0));
+    // turn off raycast on greyed-out nodes so colored (filtered) ones are easy to grab
+    for (const n of g.graphData().nodes) {
+      const obj = n.__threeObj; if (!obj) continue;
+      if (!obj.__origRaycast) obj.__origRaycast = obj.raycast;
+      obj.raycast = (hot && !hot.set.has(n.id)) ? NOOP : obj.__origRaycast;
+    }
+  }, [hot]);
   useEffect(() => { if (controlsRef.current) controlsRef.current.autoRotate = spin; }, [spin]);
   // flow controls → live-update the particle system
   useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
