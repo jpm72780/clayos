@@ -1,18 +1,17 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import { listBusinessUnits } from "./lib/api.js";
+import { listBusinessUnits, projectsLite } from "./lib/api.js";
 import GraphView from "./views/GraphView.jsx";
 import LifecycleView from "./views/LifecycleView.jsx";
 import DataView from "./views/DataView.jsx";
 import DashboardView from "./views/DashboardView.jsx";
-import AskView from "./views/AskView.jsx";
+import AskDock from "./components/AskDock.jsx";
 
 const Lifecycle3DView = lazy(() => import("./views/Lifecycle3DView.jsx"));
 
 const TABS = [
-  { id: "graph", label: "Ontology" },
-  { id: "data", label: "Data" },
-  { id: "dashboard", label: "Reporting" },
-  { id: "ask", label: "Ask ClayOS" },
+  { id: "graph", label: "Clayco Ontology" },
+  { id: "data", label: "Clayco Data" },
+  { id: "dashboard", label: "Clayco Analytics" },
 ];
 
 export default function App() {
@@ -20,17 +19,18 @@ export default function App() {
   const [ontoMode, setOntoMode] = useState("3d"); // '3d' | 'lifecycle' | 'network'
   const [bus, setBus] = useState([]);
   const [bu, setBu] = useState(null); // selected business_unit_id (null = all)
+  const [projects, setProjects] = useState([]);
+  // shared cross-filter state
+  const [focus, setFocus] = useState(null); // {pid,name,code} — a project, shared across pages
+  const [hl, setHl] = useState(null);       // {dim,value,label,depth} — cross-cutting highlight, shared
 
-  useEffect(() => { listBusinessUnits().then(setBus); }, []);
+  useEffect(() => { listBusinessUnits().then(setBus); projectsLite().then(setProjects); }, []);
 
   return (
     <div className="h-full flex flex-col">
       <header className="flex items-center gap-4 px-5 py-3 border-b border-white/10 bg-[#0d1218]">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tracking-tight">ClayOS</span>
-          <span className="text-xs text-white/40">Clayco operating system · POC</span>
-        </div>
-        <nav className="flex gap-1 ml-4">
+        <span className="text-lg font-semibold tracking-tight text-amber-300/90">Clayco</span>
+        <nav className="flex gap-1 ml-1">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`px-3 py-1.5 rounded-md text-sm transition ${
@@ -40,7 +40,7 @@ export default function App() {
         </nav>
         {tab === "graph" && (
           <div className="flex items-center gap-1 ml-2 bg-white/5 rounded-md p-0.5">
-            {[{ id: "3d", label: "Lifecycle 3D" }, { id: "lifecycle", label: "2D story" }, { id: "network", label: "Network" }].map((m) => (
+            {[{ id: "3d", label: "3D" }, { id: "lifecycle", label: "2D story" }, { id: "network", label: "Network" }].map((m) => (
               <button key={m.id} onClick={() => setOntoMode(m.id)}
                 className={`px-2.5 py-1 rounded text-xs transition ${
                   ontoMode === m.id ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
@@ -62,15 +62,15 @@ export default function App() {
       <main className="flex-1 min-h-0">
         {tab === "graph" && ontoMode === "3d" && (
           <Suspense fallback={<div className="h-full grid place-items-center text-white/50 text-sm">loading 3D…</div>}>
-            <Lifecycle3DView businessUnit={bu} />
+            <Lifecycle3DView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} />
           </Suspense>
         )}
         {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
         {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
-        {tab === "data" && <DataView businessUnit={bu} />}
+        {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
         {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} />}
-        {tab === "ask" && <AskView />}
       </main>
+      <AskDock projects={projects} focus={focus} setFocus={setFocus} goToOntology={() => setTab("graph")} />
     </div>
   );
 }

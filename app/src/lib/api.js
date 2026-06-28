@@ -8,7 +8,7 @@ export async function listBusinessUnits() {
 // Full entity list for the Data Explorer (the whole graph is ~750 rows in the POC).
 export async function allEntities() {
   const { data } = await supabase.from("entities")
-    .select("id,entity_type,domain,label,business_unit_id,source_table,classification_id,properties")
+    .select("id,entity_type,domain,label,business_unit_id,source_table,source_id,classification_id,properties")
     .order("entity_type");
   return data || [];
 }

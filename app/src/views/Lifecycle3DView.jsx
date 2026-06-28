@@ -5,7 +5,7 @@ import SpriteText from "three-spritetext";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
   subgraph, entityDetail, classificationCodes, entityClassMap, entityFacts,
-  buRollup, evmByProject, fieldByProject, safetyByProject, ask,
+  buRollup, evmByProject, fieldByProject, safetyByProject,
 } from "../lib/api.js";
 import { colorFor, TYPE_COLOR } from "../lib/palette.js";
 
@@ -152,7 +152,7 @@ function computeKpis(focus, evm, field, safety) {
   };
 }
 
-export default function Lifecycle3DView({ businessUnit }) {
+export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, setHl }) {
   const mountRef = useRef(null), fgRef = useRef(null), hotRef = useRef(null), controlsRef = useRef(null);
   const windowRef = useRef(60 * 24), flowSpeedRef = useRef(0.0018), flowSizeRef = useRef(2.0);
   const [data, setData] = useState(null);
@@ -160,18 +160,13 @@ export default function Lifecycle3DView({ businessUnit }) {
   const [classByEntity, setClassByEntity] = useState(new Map());
   const [facts, setFacts] = useState(null); // { actHours: Map<id,hours>, amount: Map<id,$> }
   const [evm, setEvm] = useState([]); const [field, setField] = useState([]); const [safety, setSafety] = useState([]); const [rollup, setRollup] = useState([]);
-  const [selected, setSelected] = useState(null);   // detail rail
-  const [focus, setFocus] = useState(null);          // {pid,name,code} drives KPIs + agent
-  const [hl, setHl] = useState(null);
+  const [selected, setSelected] = useState(null);   // detail rail (focus + hl are shared via props)
   const [loading, setLoading] = useState(true);
   const [spin, setSpin] = useState(true);
   // flow controls (recent-activity particles)
   const [windowIdx, setWindowIdx] = useState(2); // 60d
   const [flowSpeed, setFlowSpeed] = useState(0.0018);
   const [flowSize, setFlowSize] = useState(2.0);
-  // docked agent
-  const [askOpen, setAskOpen] = useState(false);
-  const [askMsgs, setAskMsgs] = useState([]); const [askInput, setAskInput] = useState(""); const [askBusy, setAskBusy] = useState(false);
 
   useEffect(() => {
     let killed = false; setLoading(true);
@@ -282,8 +277,8 @@ export default function Lifecycle3DView({ businessUnit }) {
       .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
       .onNodeClick(async (n) => {
         const h = hotRef.current; if (h && !h.set.has(n.id)) return; // greyed-out → not selectable
-        // clicking anywhere in a project's globe focuses that project + flies to it
-        if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) { setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); flyTo(proj.pid); } }
+        // clicking anywhere in a project's globe focuses that project (the [focus] effect flies there)
+        if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); }
         setSelected({ loading: true });
         const d = await entityDetail(n.id); setSelected(d || { missing: true });
       });
@@ -352,6 +347,7 @@ export default function Lifecycle3DView({ businessUnit }) {
     }
 
     fgRef.current = g;
+    if (focus?.pid) flyTo(focus.pid); // mounted with a project already focused (e.g. from Data/Ask)
     const onResize = () => g.width(el.clientWidth).height(el.clientHeight);
     window.addEventListener("resize", onResize);
     return () => {
@@ -373,6 +369,8 @@ export default function Lifecycle3DView({ businessUnit }) {
     }
   }, [hot]);
   useEffect(() => { if (controlsRef.current) controlsRef.current.autoRotate = spin; }, [spin]);
+  // focus changed from anywhere (click / Data row / agent) → fly the camera there
+  useEffect(() => { if (focus?.pid) flyTo(focus.pid); }, [focus?.pid]); // eslint-disable-line
   // flow controls → live-update the particle system
   useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
   useEffect(() => { flowSpeedRef.current = flowSpeed; const g = fgRef.current; if (g) g.linkDirectionalParticleSpeed(particleSpeed); }, [flowSpeed, graph]);
@@ -393,25 +391,6 @@ export default function Lifecycle3DView({ businessUnit }) {
   const vendors = useMemo(() => (model?.backbone || []).filter((n) => n.type === "Organization").sort((a, b) => a.label.localeCompare(b.label)), [model]);
   const employees = useMemo(() => (model?.backbone || []).filter((n) => n.type === "Person").sort((a, b) => a.label.localeCompare(b.label)), [model]);
   const pick = (dim, value, label, depth = null) => setHl(value ? { dim, value, label, depth } : null);
-
-  async function sendAsk(q) {
-    const question = (q ?? askInput).trim(); if (!question || askBusy) return;
-    setAskInput(""); setAskOpen(true);
-    const ctx = focus ? `Regarding the ${focus.name} project: ${question}` : question;
-    setAskMsgs((m) => [...m, { role: "user", text: question }]); setAskBusy(true);
-    try {
-      const r = await ask(ctx); const answer = r.answer || r.error || "(no answer)";
-      setAskMsgs((m) => [...m, { role: "assistant", text: answer }]);
-      // agent drives the view: if the exchange points at a single project, focus + fly there
-      const text = (question + " " + answer).toLowerCase();
-      const hits = (model?.projects || []).filter((p) => {
-        const kw = (p.name || "").split(" ")[0].toLowerCase();
-        return (p.code && text.includes(p.code.toLowerCase())) || (kw.length > 3 && text.includes(kw));
-      });
-      if (hits.length === 1) { const p = hits[0]; setFocus({ pid: p.pid, name: p.name, code: p.code }); flyTo(p.pid); }
-    } catch (e) { setAskMsgs((m) => [...m, { role: "assistant", text: "Error: " + e.message }]); }
-    finally { setAskBusy(false); }
-  }
 
   return (
     <div className="h-full flex">
@@ -454,7 +433,7 @@ export default function Lifecycle3DView({ businessUnit }) {
         <div ref={mountRef} className="absolute inset-0" />
 
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
-          <div className="text-sm text-white/80 font-medium">ClayOS — interwoven project systems</div>
+          <div className="text-sm text-white/80 font-medium">Clayco ontology — interwoven project systems</div>
           <div className="text-xs text-white/45 mt-0.5">orbit: left/middle drag · pan: right drag · zoom: scroll · click a project to focus everything on it.</div>
           {hl && hot && (
             <div className="mt-2 inline-block bg-amber-500/15 text-amber-200 text-xs rounded px-2 py-1 pointer-events-auto">
@@ -509,25 +488,6 @@ export default function Lifecycle3DView({ businessUnit }) {
                 {strip.mode === "enterprise" && <Kpi label="Projects" value={strip.projects ?? "—"} />}
               </>
             )}
-          </div>
-        </div>
-
-        {/* docked agent */}
-        <div className="absolute right-3 bottom-24 z-20 w-80">
-          {askOpen && (
-            <div className="mb-2 bg-[#0d1218]/95 border border-white/10 rounded-xl p-3 max-h-72 overflow-auto">
-              <div className="flex items-center justify-between mb-2"><span className="text-xs text-white/50">Ask {focus ? `· ${focus.code || focus.name}` : "· all of Clayco"}</span><button onClick={() => setAskOpen(false)} className="text-white/30 hover:text-white/70 text-xs">▾</button></div>
-              {askMsgs.length === 0 && <div className="text-[11px] text-white/40 mb-2">Ask about {focus ? "this project's" : "the portfolio's"} costs, schedule, RFIs, safety, people…</div>}
-              <div className="space-y-2">
-                {askMsgs.map((m, i) => (<div key={i} className={`text-[12px] rounded-lg px-2 py-1.5 ${m.role === "user" ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white/85"}`}>{m.text}</div>))}
-                {askBusy && <div className="text-white/40 text-[11px]">analyzing…</div>}
-              </div>
-            </div>
-          )}
-          <div className="flex gap-1">
-            <input value={askInput} onChange={(e) => setAskInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendAsk()} onFocus={() => setAskOpen(true)}
-              placeholder={focus ? `Ask about ${focus.code || focus.name}…` : "Ask ClayOS…"} className="flex-1 bg-[#0d1218]/95 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:border-amber-500/40" />
-            <button onClick={() => sendAsk()} disabled={askBusy} className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 text-xs hover:bg-amber-500/30 disabled:opacity-40">→</button>
           </div>
         </div>
       </div>

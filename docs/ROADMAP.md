@@ -57,6 +57,15 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
       (Type/Name/Domain/Project/BU/CSI/$ amount/last activity) + row→detail. 750 rows, $10.58B total.
 - [x] Flow UX: slower/larger pulses by default, 60-day default window; greyed-out (non-highlighted)
       nodes become non-hoverable/non-selectable (raycast off) so the colored ones are easy to grab.
+- [x] **Cross-filter** the pages: shared `focus`/`hl` state lifted to App. Ontology Highlight-by key
+      scopes the Data table (chip); a Data row → "view in ontology" focuses + flies the 3D camera;
+      ask/agent focus follows across tabs. Verified: CSI Metals → 35/750 rows; row → focus Aurora.
+- [x] **Data quantification panel** (filter-reactive): data points, $ value, moved 7/30/60d, by-domain
+      bars, by-type (clickable), status/disposition cards (RFI open/answered, etc.).
+- [x] **Clayco Analytics** (was Reporting): added calculated portfolio KPIs — backlog/forecast/overrun,
+      value-weighted CPI/SPI, # over budget, # behind schedule, open RFIs, portfolio TRIR.
+- [x] **Rebrand**: Clayco Ontology / Clayco Data / Clayco Analytics; dropped "ClayOS"; the agent is now
+      a small constant **Ask dock** in the bottom-right corner on every page (replaces the Ask tab).
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
