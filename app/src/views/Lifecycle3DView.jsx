@@ -4,7 +4,7 @@ import * as THREE from "three";
 import SpriteText from "three-spritetext";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import {
-  subgraph, entityDetail, classificationCodes, entityClassMap,
+  subgraph, entityDetail, classificationCodes, entityClassMap, entityFacts,
   buRollup, evmByProject, fieldByProject, safetyByProject, ask,
 } from "../lib/api.js";
 import { colorFor, TYPE_COLOR } from "../lib/palette.js";
@@ -127,11 +127,12 @@ const DIM = "#222933";
 const num = (v) => (v == null ? null : Number(v));
 const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(0) + "M");
 
-// deterministic "hours since this data point last moved" (synthetic POC activity).
-// Linear over 30 days → few changed in the last hour, more over a week, all within a month.
-function hashId(id) { let h = 2166136261; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
-const recencyHours = (id) => hashId(id) * 720;
-const WINDOWS = [{ h: 1, label: "1h" }, { h: 6, label: "6h" }, { h: 24, label: "24h" }, { h: 72, label: "3d" }, { h: 168, label: "7d" }, { h: 720, label: "30d" }];
+// Flow time-window (hours back from now). Recency is REAL — derived from each
+// record's semantic date via kg_entity_facts() (migration 010).
+const D = 24;
+const WINDOWS = [{ h: 7 * D, label: "7d" }, { h: 30 * D, label: "30d" }, { h: 90 * D, label: "90d" }, { h: 180 * D, label: "6mo" }, { h: 365 * D, label: "1y" }, { h: 1e9, label: "all" }];
+// vessel thickness grows with the dollars a record carries (log scale)
+const vesselWidth = (amt) => (amt > 0 ? 0.12 + Math.max(0, Math.log10(amt) - 3.5) * 0.28 : 0.12);
 
 function computeKpis(focus, evm, field, safety) {
   if (focus) {
@@ -152,10 +153,11 @@ function computeKpis(focus, evm, field, safety) {
 
 export default function Lifecycle3DView({ businessUnit }) {
   const mountRef = useRef(null), fgRef = useRef(null), hotRef = useRef(null), controlsRef = useRef(null);
-  const windowRef = useRef(24), flowSpeedRef = useRef(0.0035), flowSizeRef = useRef(1.1);
+  const windowRef = useRef(30 * 24), flowSpeedRef = useRef(0.0035), flowSizeRef = useRef(1.1);
   const [data, setData] = useState(null);
   const [codes, setCodes] = useState([]);
   const [classByEntity, setClassByEntity] = useState(new Map());
+  const [facts, setFacts] = useState(null); // { actHours: Map<id,hours>, amount: Map<id,$> }
   const [evm, setEvm] = useState([]); const [field, setField] = useState([]); const [safety, setSafety] = useState([]); const [rollup, setRollup] = useState([]);
   const [selected, setSelected] = useState(null);   // detail rail
   const [focus, setFocus] = useState(null);          // {pid,name,code} drives KPIs + agent
@@ -163,7 +165,7 @@ export default function Lifecycle3DView({ businessUnit }) {
   const [loading, setLoading] = useState(true);
   const [spin, setSpin] = useState(true);
   // flow controls (recent-activity particles)
-  const [windowIdx, setWindowIdx] = useState(2); // 24h
+  const [windowIdx, setWindowIdx] = useState(1); // 30d
   const [flowSpeed, setFlowSpeed] = useState(0.0035);
   const [flowSize, setFlowSize] = useState(1.1);
   // docked agent
@@ -178,6 +180,15 @@ export default function Lifecycle3DView({ businessUnit }) {
   useEffect(() => {
     Promise.all([classificationCodes(), entityClassMap()]).then(([cc, em]) => { setCodes(cc); setClassByEntity(new Map(em.map((r) => [r.id, r.classification_id]))); }).catch((e) => console.error(e));
     evmByProject().then(setEvm); fieldByProject().then(setField); safetyByProject().then(setSafety); buRollup().then(setRollup);
+    entityFacts().then((rows) => {
+      const now = Date.now();
+      const actHours = new Map(), amount = new Map();
+      for (const r of rows) {
+        if (r.activity_at) { const h = (now - new Date(r.activity_at).getTime()) / 3.6e6; actHours.set(r.entity_id, h >= 0 ? h : Infinity); } // future = not yet moved
+        if (r.amount != null) amount.set(r.entity_id, Number(r.amount));
+      }
+      setFacts({ actHours, amount });
+    }).catch((e) => { console.error(e); setFacts({ actHours: new Map(), amount: new Map() }); }); // degrade gracefully
   }, []);
 
   const model = useMemo(() => (data?.nodes?.length ? classify(data) : null), [data]);
@@ -185,20 +196,30 @@ export default function Lifecycle3DView({ businessUnit }) {
   const kpis = useMemo(() => computeKpis(focus, evm, field, safety), [focus, evm, field, safety]);
 
   const graph = useMemo(() => {
-    if (!model) return null;
+    if (!model || !facts) return null;
     const { pos, meta, clusters, labels, centroid } = buildClusters(model);
-    const nodes = []; const cidById = new Map(); const recById = new Map();
+    const nodes = []; const cidById = new Map(); const recById = new Map(); const amtById = new Map(); const typeById = new Map();
     for (const [id, p] of pos) {
       const m = meta.get(id);
-      const rh = m.type === "Project" ? Infinity : recencyHours(id); // project hubs never gate the flow
-      nodes.push({ id, ...m, rh, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z });
-      cidById.set(id, m.cid); recById.set(id, rh);
+      const rh = m.type === "Project" ? Infinity : (facts.actHours.get(id) ?? Infinity); // hubs never gate; missing date = structural (never flows)
+      const amt = facts.amount.get(id) ?? 0;
+      nodes.push({ id, ...m, rh, amt, x: p.x, y: p.y, z: p.z, fx: p.x, fy: p.y, fz: p.z });
+      cidById.set(id, m.cid); recById.set(id, rh); amtById.set(id, amt); typeById.set(id, m.type);
     }
     const ids = new Set(nodes.map((n) => n.id));
     const links = data.edges.filter((e) => e.source !== e.target && ids.has(e.source) && ids.has(e.target))
-      .map((e) => ({ source: e.source, target: e.target, cross: cidById.get(e.source) !== cidById.get(e.target), rh: Math.min(recById.get(e.source), recById.get(e.target)) }));
+      .map((e) => {
+        const rs = recById.get(e.source), rt = recById.get(e.target);
+        return {
+          source: e.source, target: e.target,
+          cross: cidById.get(e.source) !== cidById.get(e.target),
+          rh: Math.min(rs, rt),                                   // hours since the mover last moved
+          moverType: (rs <= rt ? typeById.get(e.source) : typeById.get(e.target)), // what moved → pulse colour
+          amt: Math.max(amtById.get(e.source), amtById.get(e.target)),             // $ carried → vessel width
+        };
+      });
     return { nodes, links, clusters, labels, centroid };
-  }, [model, data]);
+  }, [model, data, facts]);
 
   const hot = useMemo(() => {
     if (!model || !hl) return null;
@@ -214,6 +235,9 @@ export default function Lifecycle3DView({ businessUnit }) {
 
   const nodeColor = (n) => { const h = hotRef.current; return h && !h.set.has(n.id) ? DIM : colorFor(n.type); };
   const nodeVal = (n) => { const base = n.type === "Project" ? 34 : 3; const h = hotRef.current; return h && h.set.has(n.id) ? base * 2.2 : base; };
+  // pulses move faster the more recently their data point moved (within the window)
+  const particleSpeed = (l) => flowSpeedRef.current * (1 + Math.min(1, Math.max(0, 1 - l.rh / windowRef.current)) * 2.5);
+  const hubIntensityRef = useRef(new Map()); // pid -> 0..1 recent-activity intensity, drives hub pulse
 
   useEffect(() => {
     if (!graph || !mountRef.current) return;
@@ -227,13 +251,13 @@ export default function Lifecycle3DView({ businessUnit }) {
       .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(9)
       .nodeLabel((n) => `<div style="font-size:12px"><b>${n.label}</b><br/><span style="opacity:.6">${n.type} · ${n.domain}</span></div>`)
       .linkCurvature(0.22)
-      // paths are a quiet, thin structure; the FLOW carries the story
-      .linkWidth((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? 0.7 : 0.12; return 0.16; })
-      .linkColor((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? "#f59e0b" : "#0a0e14"; return l.cross ? "#22303f" : "#161f29"; })
+      // paths are a quiet, thin structure; thickness grows with the $ a record carries
+      .linkWidth((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? 0.9 : 0.1; return vesselWidth(l.amt); })
+      .linkColor((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? "#f59e0b" : "#0a0e14"; return l.amt > 1e6 ? "#26384b" : (l.cross ? "#22303f" : "#161f29"); })
       .linkOpacity(0.32)
-      // particles = actual data points that moved within the time window
+      // particles = actual data points that moved within the window; colour = what moved, speed = how recent
       .linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0))
-      .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(flowSpeedRef.current).linkDirectionalParticleColor(() => "#7dd3fc")
+      .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
       .onNodeClick(async (n) => {
         // clicking anywhere in a project's globe focuses that project
         if (n.pid) { const proj = model?.projects?.find((p) => p.pid === n.pid); if (proj) setFocus({ pid: proj.pid, name: proj.name, code: proj.code }); }
@@ -267,6 +291,32 @@ export default function Lifecycle3DView({ businessUnit }) {
     const bloom = new UnrealBloomPass(new THREE.Vector2(el.clientWidth, el.clientHeight), 0.7, 0.5, 0.22);
     g.postProcessingComposer().addPass(bloom);
 
+    // hub pulse: each project breathes brighter the more it's moved recently
+    const halos = [];
+    for (const c of graph.clusters.filter((cl) => cl.kind === "project")) {
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 16, 12),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(c.color), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      halo.position.set(c.center.x, c.center.y, c.center.z);
+      halo.raycast = () => {};
+      halo.scale.setScalar(c.radius * 0.6);
+      g.scene().add(halo);
+      halos.push({ mesh: halo, base: c.radius * 0.6, pid: c.pid, phase: (c.center.x % 11) });
+    }
+    let raf;
+    const animate = () => {
+      const t = performance.now() / 1000;
+      for (const h of halos) {
+        const I = hubIntensityRef.current.get(h.pid) || 0;
+        const pulse = 0.55 + 0.45 * Math.sin(t * 1.7 + h.phase);
+        h.mesh.material.opacity = 0.02 + 0.24 * I * pulse;
+        h.mesh.scale.setScalar(h.base * (1 + 0.14 * I * pulse));
+      }
+      raf = requestAnimationFrame(animate);
+    };
+    animate();
+
     const ctr = graph.centroid;
     g.cameraPosition({ x: ctr.x + 220, y: 240, z: ctr.z + 980 }, ctr, 0);
     const controls = g.controls();
@@ -282,6 +332,7 @@ export default function Lifecycle3DView({ businessUnit }) {
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(raf);
       try { g._destructor && g._destructor(); } catch { /* noop */ }
       fgRef.current = null; if (el) el.innerHTML = "";
     };
@@ -290,10 +341,19 @@ export default function Lifecycle3DView({ businessUnit }) {
   useEffect(() => { const g = fgRef.current; if (g) g.nodeColor(nodeColor).nodeVal(nodeVal).linkColor(g.linkColor()).linkWidth(g.linkWidth()).linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)); }, [hot]);
   useEffect(() => { if (controlsRef.current) controlsRef.current.autoRotate = spin; }, [spin]);
   // flow controls → live-update the particle system
-  useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)); }, [windowIdx, graph]);
-  useEffect(() => { flowSpeedRef.current = flowSpeed; const g = fgRef.current; if (g) g.linkDirectionalParticleSpeed(flowSpeed); }, [flowSpeed, graph]);
+  useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
+  useEffect(() => { flowSpeedRef.current = flowSpeed; const g = fgRef.current; if (g) g.linkDirectionalParticleSpeed(particleSpeed); }, [flowSpeed, graph]);
   useEffect(() => { flowSizeRef.current = flowSize; const g = fgRef.current; if (g) g.linkDirectionalParticleWidth(flowSize); }, [flowSize, graph]);
   const activeCount = useMemo(() => (graph ? graph.nodes.filter((n) => n.type !== "Project" && n.rh <= WINDOWS[windowIdx].h).length : 0), [graph, windowIdx]);
+  // recompute per-project recent-activity intensity (drives the hub pulse) when window/data changes
+  useEffect(() => {
+    if (!graph) return;
+    const win = WINDOWS[windowIdx].h, counts = new Map();
+    for (const n of graph.nodes) { if (n.type !== "Project" && n.pid && n.rh <= win) counts.set(n.pid, (counts.get(n.pid) || 0) + 1); }
+    const max = Math.max(1, ...counts.values());
+    const inten = new Map(); for (const [pid, c] of counts) inten.set(pid, c / max);
+    hubIntensityRef.current = inten;
+  }, [graph, windowIdx]);
 
   const mfCodes = useMemo(() => codes.filter((c) => c.system_id === "masterformat"), [codes]);
   const ufCodes = useMemo(() => codes.filter((c) => c.system_id === "uniformat"), [codes]);
@@ -339,9 +399,9 @@ export default function Lifecycle3DView({ businessUnit }) {
         {hl && (<button onClick={() => setHl(null)} className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">✕ clear highlight</button>)}
         <div className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Reading it</div>
         <div className="text-[10px] text-white/50 leading-snug space-y-1">
-          <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit, sized by its data.</div>
-          <div>Each cyan pulse = a <b>data point that moved</b> within the time window (set it below the map).</div>
-          <div>Click a project → its KPIs + the agent rescope to it.</div>
+          <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit; it <b>pulses</b> brighter the more it has moved lately.</div>
+          <div>Each pulse = a <b>real data point that moved</b> in the window (colour = what kind); faster = more recent.</div>
+          <div>Thicker vessels carry more <b>$</b> (contracts, pay-apps, cost). Click a project → KPIs + agent rescope.</div>
         </div>
         <div className="text-white/40 text-[10px] uppercase tracking-wide mt-4 mb-1">Entity types</div>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">{Object.keys(TYPE_COLOR).map((t) => (<div key={t} className="flex items-center gap-1 text-[10px] text-white/55"><span className="w-2 h-2 rounded-full" style={{ background: colorFor(t) }} />{t}</div>))}</div>

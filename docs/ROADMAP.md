@@ -46,9 +46,9 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
 - [x] 3D ontology (`3d-force-graph`): floating project globe-clusters, lifecycle into depth
 - [x] Selection-driven docked KPI strip + docked Ask agent (click project → rescope)
 - [x] "Vascular" aesthetic: thin vessels, bloom/fog, drifting orbit, time-windowed activity flow
-- [ ] Flow enrichment: pulse colour/speed by domain+recency + hub pulse
-- [ ] Real recency from domain dates (`kg_entity_facts()` migration 010)
-- [ ] $-weighted vessel thickness (contracts/pay-apps/cost/estimates)
+- [x] Flow enrichment: pulse colour by domain + speed by recency + hub pulse on active projects
+- [x] Real recency from domain dates (`kg_entity_facts()` migration 010; flow window = actual seed dates)
+- [x] $-weighted vessel thickness (contracts/pay-apps/cost/estimates, log-scaled)
 - [ ] Deepen unification: filters also rescope KPIs; agent can drive the view (highlight/focus)
 
 ## Phase 3 — Polish

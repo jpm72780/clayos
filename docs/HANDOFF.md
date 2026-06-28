@@ -99,15 +99,20 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
 
 ---
 
-## Next actions (session 3 — in progress: enrich the flow)
-Active thread (user: "do all of them, keep working til done"):
-1. **Flow means more** — pulse colour by domain/type, pulse speed by recency, hub pulse on activity.
-2. **Real recency** — flow window driven by *actual* record dates (migration 010 `kg_entity_facts()` →
-   per-entity `activity_at`), not the synthetic hash. (`entities.updated_at` is all seed-time, so real
-   recency must come from domain semantic dates: rfis/daily_logs/safety/pay_apps/contracts/schedule…)
-3. **Vessel thickness by $** — money-bearing links (contracts.value, cost_accounts.bac, pay_apps,
-   estimates/pursuits, projects.contract_value) carry fatter vessels (same `kg_entity_facts()` `amount`).
-Then: commit + redeploy; keep deepening the unified interface (filters also rescope KPIs; agent can drive the view).
+## Flow enrichment — DONE (2026-06-28, session 2 cont.) ✓ live
+1. ✓ **Flow means more** — pulse **colour by domain/type** (what moved), **speed by recency**, **hub pulse**
+   (each project breathes brighter the more it moved in-window). 
+2. ✓ **Real recency** — flow window driven by *actual* record dates via **migration 010 `kg_entity_facts()`**
+   (`entities.updated_at` is all seed-time → recency comes from domain semantic dates). Verified vs DB:
+   7d→5, 30d→49, all→459 data points moved. Migration applied to **local + cloud**; RPC anon-readable.
+3. ✓ **Vessel thickness by $** — log-scaled width from `kg_entity_facts().amount` (contracts.value,
+   cost_accounts.bac, pay_apps via lines, estimates/pursuits, projects.contract_value).
+
+## Next actions
+- **Deepen the unification**: make the "Highlight by" filters also **rescope the KPI strip** (e.g. pick a CSI
+  division → portfolio cost rolled up by it); let the **agent drive the view** (answer → highlight/focus the
+  relevant systems). 
+- Then: original Phase-2 backlog below (text-to-SQL `kg_query`, RLS scoping, CI/pg_cron, deeper seed).
 
 ## Backlog (original Phase 2 — widen + deepen)
 

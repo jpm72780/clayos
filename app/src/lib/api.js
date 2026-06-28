@@ -64,6 +64,14 @@ export async function entityClassMap() {
   return data || [];
 }
 
+// Per-entity facts: real "last activity" date + dollar amount (migration 010).
+// Drives the recent-activity flow window + $-weighted vessels.
+export async function entityFacts() {
+  const { data, error } = await supabase.rpc("kg_entity_facts");
+  if (error) throw error;
+  return data || [];
+}
+
 export async function ask(question, history = []) {
   const r = await fetch(`${FUNCTIONS_URL}/agent-ask`, {
     method: "POST",
