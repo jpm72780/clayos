@@ -75,13 +75,16 @@ Shipped live:
 - [x] CSV export + URL-hash deep-link state
 - [x] `kg_query` text-to-SQL agent tool (guarded) + structured agent view-control (`@@VIEW@@`)
 - [x] ErrorBoundary; Data table render cap; agent eval set (`evals/`)
-Local-done, cloud re-seed pending user (`scripts/reseed-cloud.sh`):
-- [x] Data expansion: CRG dev BU + 2 projects, deepen all, stage-aware activity (~1,711 entities)
-- [x] kpi_history trend backfill + Analytics CPI/SPI trend chart
+Data expansion — LIVE on cloud (re-seeded 2026-06-29 via `scripts/reseed-cloud.sh`):
+- [x] CRG dev BU + 2 projects, deepen all, stage-aware activity — 8 projects / 1,711 entities live
+- [x] kpi_history trend backfill + Analytics CPI/SPI trend chart (318 rows live)
+- [x] Resilience: data-health banner; URL hash persists only tab/onto-mode
 Designed / deferred:
 - [~] RLS field/exec scaffolding (migration 012, not enabled)
 - [ ] Enable pg_cron + CI auto-deploy (#4 — CI blocked by token scope)
 - [ ] Semantic search in the UI (#11); 2D/Network cross-filter; split Lifecycle3DView (#14b)
+- [ ] kg_entity_facts pagination (PostgREST 1,000-row cap vs 1,711 entities)
+- [ ] Robustness: avoid hammering the `micro` Supabase instance (edge abuse-protection 503s)
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass

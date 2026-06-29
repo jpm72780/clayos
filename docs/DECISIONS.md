@@ -79,9 +79,11 @@ projects deep and no time-series.
 gate field-activity entities (daily logs/safety/quality) by lifecycle stage for realism; backfill
 12 monthly `kpi_history` snapshots/project for trend charts. Determinism preserved (seed 42 + uuid5).
 **Rationale:** Richer, more realistic demo across all five layers. `snapshot_kpis()` only captures
-"now", so history is synthesised in the seed. **Cloud apply is gated** (safety system blocks
-autonomous prod rebuild) → `scripts/reseed-cloud.sh` for the user. Re-seed is reproducible, not
-truly irreversible (old generator is in git history).
+"now", so history is synthesised in the seed. Re-seed is reproducible, not truly irreversible (old
+generator is in git history).
+**Cloud status:** APPLIED 2026-06-29 via `scripts/reseed-cloud.sh` (user-authorised). Live cloud now
+has 8 projects / 1,711 entities / 318 history rows / embeddings drained. Re-run that script to refresh.
+(Autonomous cloud rebuild was blocked by the safety classifier overnight; ran it on explicit "you run it".)
 
 ## ADR-011 — RLS role-scoping shipped as inert scaffolding (not enforced)
 **Status:** Accepted (2026-06-28)

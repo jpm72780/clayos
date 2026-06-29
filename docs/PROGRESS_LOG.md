@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-29 — Session 3 (cont.): cloud re-seed LIVE + edge-block incident
+
+- **Cloud re-seeded** with the 8-project dataset via `scripts/reseed-cloud.sh` (user said "you run it").
+  Verified live via anon: 8 projects (incl. CRG-100 The Cubes, CRG-200 Chapter), CRG BU rollup ($310M /
+  2 proj), enterprise $2.1B / 8 proj, 1,711 entities, 318 kpi_history rows, all embeddings drained.
+- **Incident:** the live app showed all-zeros for the user. Root cause (with user's dashboard help):
+  Supabase **platform abuse protection 503'd the user's browser IP at the edge** (preflight rejected
+  upstream of the gateway) — triggered by the session's heavy load on the `micro` instance + the user's
+  refreshes. NOT data loss / RLS / cache / key. Confirmed: Management API shows Network Restrictions open
+  + zero bans; phone (different IP) loaded fine. Auto-expires.
+- **Fixes shipped:** (a) `dataHealth()` + red "can't reach the data service" banner instead of silent
+  zeros; (b) URL hash now persists only tab/onto-mode (was persisting focus/hl/bu → reload looked empty).
+- **Follow-up noted:** `kg_entity_facts` returns ≤1,000 rows (PostgREST max-rows) — paginate/raise.
+- **Lesson:** don't hammer the `micro` Supabase instance.
+
+---
+
 ## 2026-06-28 — Session 3 (Opus 4.8): top-15 improvements + data expansion (overnight, autonomous)
 
 **Context.** User asked to deep-dive state, list 15 improvements, then plan + execute all 15 overnight
