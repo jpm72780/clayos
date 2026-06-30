@@ -7,4 +7,5 @@ const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const supabase = createClient(url, anon, { db: { schema: "clayos" } });
 
 export const FUNCTIONS_URL = `${url}/functions/v1`;
+export const REST_URL = `${url}/rest/v1`;
 export const ANON_KEY = anon;

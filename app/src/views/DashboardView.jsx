@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   ReferenceLine, CartesianGrid, Legend,
@@ -12,12 +12,46 @@ const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(1) + "M
 const fmtPct = (n) => (n == null ? "—" : (Number(n) * 100).toFixed(0) + "%");
 const short = (s) => (s || "").replace(/ (Hyperscale|Cloud Campus|Cell Therapy|Logistics Park|Logistics|Mixed-Use|Student Living|Fab|Expansion).*/, "");
 
-function Card({ title, children, sub }) {
+function triggerDownload(blob, name) {
+  const url = URL.createObjectURL(blob); const a = document.createElement("a");
+  a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
+}
+function downloadCsv(rows, name) {
+  if (!rows?.length) return;
+  const cols = Object.keys(rows[0]); const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))];
+  triggerDownload(new Blob([lines.join("\n")], { type: "text/csv" }), name);
+}
+function svgToPng(svg, name) {
+  const r = svg.getBoundingClientRect(), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  const clone = svg.cloneNode(true); clone.setAttribute("width", w); clone.setAttribute("height", h);
+  const xml = new XMLSerializer().serializeToString(clone);
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = w * 2; c.height = h * 2;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#0d1218"; ctx.fillRect(0, 0, c.width, c.height); ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+    c.toBlob((b) => b && triggerDownload(b, name), "image/png");
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+}
+
+function Card({ title, children, sub, csvRows, name, ask, onAsk }) {
+  const bodyRef = useRef(null);
+  const exportPng = () => { const svg = bodyRef.current?.querySelector("svg"); if (svg) svgToPng(svg, (name || title) + ".png"); };
   return (
     <div className="min-w-0 bg-[#0d1218] border border-white/10 rounded-xl p-4">
-      <div className="text-sm font-medium text-white/80">{title}</div>
-      {sub && <div className="text-xs text-white/40 mb-2">{sub}</div>}
-      <div className="mt-2">{children}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-white/80">{title}</div>
+          {sub && <div className="text-xs text-white/40">{sub}</div>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {onAsk && ask && <button onClick={() => onAsk(ask)} title="Ask Clayco about this chart" className="text-[11px] text-amber-300/70 hover:text-amber-300">✦ ask</button>}
+          {csvRows?.length > 0 && <button onClick={() => downloadCsv(csvRows, (name || title) + ".csv")} title="Download data as CSV" className="text-[11px] text-white/35 hover:text-white/80">CSV</button>}
+          <button onClick={exportPng} title="Download chart as PNG" className="text-[11px] text-white/35 hover:text-white/80">PNG</button>
+        </div>
+      </div>
+      <div ref={bodyRef} className="mt-2">{children}</div>
     </div>
   );
 }
@@ -33,7 +67,7 @@ function Stat({ label, value, sub, warn }) {
   );
 }
 
-export default function DashboardView({ businessUnit, bus = [], focus, setFocus }) {
+export default function DashboardView({ businessUnit, bus = [], focus, setFocus, onAsk }) {
   const [rollup, setRollup] = useState([]);
   const [evm, setEvm] = useState([]);
   const [field, setField] = useState([]);
@@ -51,6 +85,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
   }, []);
 
   const buName = (id) => bus.find((b) => b.id === id)?.name || "—";
+  const askScope = focus ? (focus.code || focus.name) : businessUnit ? buName(businessUnit) : "the portfolio";
   const focusBu = focus ? evm.find((p) => p.project_id === focus.pid)?.business_unit_id : null;
   const projF = (arr) => (focus ? arr.filter((p) => p.project_id === focus.pid) : businessUnit ? arr.filter((p) => p.business_unit_id === businessUnit) : arr);
   const buF = (arr) => { const b = businessUnit || focusBu; return b ? arr.filter((x) => x.business_unit_id === b) : arr; };
@@ -112,13 +147,25 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
 
       {/* BU rollup strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {rollup.filter((r) => r.kind !== "enterprise").map((r) => (
-          <div key={r.business_unit_id} className="bg-[#0d1218] border border-white/10 rounded-xl p-4">
-            <div className="text-xs text-white/50">{r.business_unit_name}</div>
-            <div className="text-2xl font-semibold mt-1">{fmt$(r.total_contract_value)}</div>
-            <div className="text-xs text-white/40 mt-1">{r.active_projects} active · CPI {r.cpi ?? "—"} · TRIR {r.trir ?? "—"}</div>
-          </div>
-        ))}
+        {rollup.filter((r) => r.kind !== "enterprise").map((r) => {
+          const hasProjects = Number(r.active_projects) > 0 || Number(r.total_contract_value) > 0;
+          return (
+            <div key={r.business_unit_id} className="bg-[#0d1218] border border-white/10 rounded-xl p-4">
+              <div className="text-xs text-white/50">{r.business_unit_name}</div>
+              {hasProjects ? (
+                <>
+                  <div className="text-2xl font-semibold mt-1">{fmt$(r.total_contract_value)}</div>
+                  <div className="text-xs text-white/40 mt-1">{r.active_projects} active · CPI {r.cpi ?? "—"} · TRIR {r.trir ?? "—"}</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-semibold mt-1 text-white/30">—</div>
+                  <div className="text-xs text-white/40 mt-1" title="A shared-services / support group — it carries no construction contract value of its own.">Support group · no construction projects</div>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* backlog · pipeline · utilization by business unit (previously-hidden KPIs) */}
@@ -133,8 +180,14 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
                 <div className="text-sm text-white/80 mb-2">{buName(b.business_unit_id)}</div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div><div className="text-[10px] text-white/45">Backlog</div><div className="text-base font-semibold">{fmt$(b.backlog)}</div></div>
-                  <div><div className="text-[10px] text-white/45">Open pipeline</div><div className="text-base font-semibold">{fmt$(pl.open_pipeline_value)}</div></div>
-                  <div><div className="text-[10px] text-white/45">Win rate</div><div className="text-base font-semibold">{pl.win_rate != null ? fmtPct(pl.win_rate) : "—"}</div></div>
+                  <div title={pl.open_pipeline_value == null ? "No open pursuits tracked for this unit" : undefined}>
+                    <div className="text-[10px] text-white/45">Open pipeline</div>
+                    <div className={`text-base font-semibold ${pl.open_pipeline_value == null ? "text-white/30" : ""}`}>{pl.open_pipeline_value == null ? "no data" : fmt$(pl.open_pipeline_value)}</div>
+                  </div>
+                  <div title={pl.win_rate == null ? "No closed (won/lost) pursuits yet — win rate needs decision history" : undefined}>
+                    <div className="text-[10px] text-white/45">Win rate</div>
+                    <div className={`text-base font-semibold ${pl.win_rate == null ? "text-white/30" : ""}`}>{pl.win_rate != null ? fmtPct(pl.win_rate) : "no data"}</div>
+                  </div>
                 </div>
                 <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-xs text-white/50">
                   <span>{ru.people ?? 0} people · {ru.avg_utilization_pct != null ? Math.round(ru.avg_utilization_pct) + "% util" : "—"}</span>
@@ -149,7 +202,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
       {/* performance trend over time (kpi_history) */}
       {trendData.length > 1 && (
         <div className="mb-4">
-          <Card title="Performance trend" sub={`CPI / SPI over time · ${focus ? focus.code || focus.name : "portfolio average"}`}>
+          <Card title="Performance trend" sub={`CPI / SPI over time · ${focus ? focus.code || focus.name : "portfolio average"}`}
+            csvRows={trendData} name="performance-trend" onAsk={onAsk} ask={`Explain the CPI and SPI performance trend over time for ${askScope}. What's driving the direction?`}>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={trendData} margin={{ left: -16 }}>
                 <CartesianGrid stroke="#1a212b" />
@@ -167,7 +221,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
 
       {/* charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Cost & Schedule Performance" sub="CPI / SPI by project · 1.0 = on plan (lower = behind/over)">
+        <Card title="Cost & Schedule Performance" sub="CPI / SPI by project · 1.0 = on plan (lower = behind/over)"
+          csvRows={cpiData} name="cost-schedule" onAsk={onAsk} ask={`For ${askScope}, which projects are under-performing on cost (CPI) or schedule (SPI), and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={cpiData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" />
@@ -181,7 +236,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Budget vs Forecast at Completion" sub="BAC vs EAC ($M) · EAC > BAC = projected overrun">
+        <Card title="Budget vs Forecast at Completion" sub="BAC vs EAC ($M) · EAC > BAC = projected overrun"
+          csvRows={budgetData} name="budget-vs-forecast" onAsk={onAsk} ask={`For ${askScope}, which projects show the biggest forecast overrun (EAC vs BAC) and what's causing it?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={budgetData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
@@ -191,7 +247,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Work-in-Progress — over / under billing" sub="$M billed vs earned · positive = overbilled, negative = underbilled">
+        <Card title="Work-in-Progress — over / under billing" sub="$M billed vs earned · positive = overbilled, negative = underbilled"
+          csvRows={wipData} name="wip-billing" onAsk={onAsk} ask={`For ${askScope}, which projects are most over- or under-billed (WIP), and what does that imply for cash?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={wipData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
@@ -201,7 +258,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Open RFIs" sub="Open vs total RFIs by project">
+        <Card title="Open RFIs" sub="Open vs total RFIs by project"
+          csvRows={rfiData} name="open-rfis" onAsk={onAsk} ask={`For ${askScope}, which projects have the most open RFIs and what's the average turnaround?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={rfiData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
@@ -211,7 +269,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus 
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Safety — TRIR" sub="Total Recordable Incident Rate (per 200k hours)">
+        <Card title="Safety — TRIR" sub="Total Recordable Incident Rate (per 200k hours)"
+          csvRows={trirData} name="safety-trir" onAsk={onAsk} ask={`For ${askScope}, which projects have the worst safety record (TRIR vs the industry average) and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={trirData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />

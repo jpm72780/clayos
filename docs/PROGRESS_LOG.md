@@ -5,6 +5,81 @@
 
 ---
 
+## 2026-06-29 — Session 4 (Opus 4.8): external-review response, Phase 1 LIVE
+
+**Context.** User pasted a thorough external review of the live app (3 concrete issues + 10
+improvements), approved a 4-phase plan (`/home/clawd/.claude/plans/sparkling-singing-lighthouse.md`),
+chose "deploy when verified". Phase 1 = the 3 visible issues. **All LIVE at https://clayos.pages.dev.**
+
+- **#2 Markdown answers (was raw `##`/`**`).** Added `react-markdown`+`remark-gfm`; `AskDock` renders
+  assistant text via a compact dark component map (headings/bold/lists/GFM tables/code). Verified live:
+  real `<strong>`/`<li>` elements, no literal markers.
+- **#3 Streaming + progress (was a 12–15s static "analyzing…").** `agent-ask` now returns SSE when the
+  client sends `Accept: text/event-stream`: a `tool` event per kg_* call with a friendly label
+  (e.g. "pulling KPIs for Aurora"), `token` deltas via Anthropic streaming on the final turn, then a
+  `done` event carrying `{focus,highlight}` (the `@@VIEW@@` marker is tail-buffered out of the visible
+  text server-side). **JSON path preserved** for evals; client (`askStream` in `api.js`) has a JSON
+  fallback so chat can't regress if a proxy collapses the stream. `AskDock` shows a typing indicator +
+  live tool-progress line. Verified live via curl (tool/token/done all stream) and a headless chat run.
+- **#1 3D `reading 'x'` crash — root-caused & fixed.** Reproduced via CDP (headless Chromium + pointer
+  drags): `OrbitControls.onPointerUp` reads `_pointerPositions[id].x` on a pointer it never tracked,
+  triggered when a node **drag** ends and 3d-force-graph fires a synthetic `pointerup` to stop the camera
+  taking over. Fix: `.enableNodeDrag(false)` in `Lifecycle3DView` — nodes are pinned (fx/fy/fz) and the
+  camera is orbit-driven, so node-drag was never wanted; this removes DragControls entirely. Verified:
+  0 exceptions across aggressive drags/sliders/highlight/BU-rebuild/resize (was reproducible before).
+- **Eval harness fix (pre-existing bug):** `evals/run.mjs` declared `const URL = …` which shadowed the
+  global `URL` constructor → the suite never ran. Renamed to `BASE`. Now **5/6 pass**; updated the safety
+  golden `9.27→9.43` (stale after the session-3 re-seed; agent + number both verified correct).
+
+**Deployed:** edge fn (`supabase functions deploy agent-ask`) + frontend (`wrangler pages deploy`).
+Prod HTTP 200, bundle `index-DBy5gEQz.js`.
+
+**Phase 2 — ontology UX & reliability — ALSO SHIPPED LIVE (bundle `index-Cdng8Lyc.js`):**
+- **B1 — 1,000-row cap (latent bug).** PostgREST caps responses at 1,000; the graph is 1,711 entities,
+  so `allEntities` (Data table + quantification/CSV), `entityClassMap` (3D highlight) and `entityFacts`
+  (flow/$) silently dropped ~711 rows. Added `fetchAllRows` (Range paging for tables) and `fetchAllRpc`
+  (?limit/?offset paging for the SETOF RPC — it **ignores** the Range header) in `api.js`, with a
+  50-page safety cap. Verified: entities 1,711 (unique), facts 1,314 (unique); Data footer now reads
+  "of 1,711".
+- **#4 Resizable/expandable chat.** AskDock now has a drag-to-resize grip + expand/shrink toggle; size
+  persists in localStorage; transcript auto-scrolls. Verified live: 320→470px via the grip.
+- **#5 Onboarding overlay.** New `OntologyIntro` — a first-run "what am I looking at?" coachmark for the
+  3D metaphor (globe/pulse/vessel/click), persisted (`clayos.introSeen.v1`), with a "?" reopen button.
+- **#9a 3D perf.** Added a **lite** quality mode (no bloom, no flow particles, lower node resolution) —
+  manual toggle + **auto-downgrade** if the opening ~3s averages <25 fps. Verified: auto-lite fired under
+  swiftshader, manual toggle back to full, both rebuilds + node-drags = 0 exceptions.
+
+**Phase 3 — cross-cutting clarity — ALSO SHIPPED LIVE (bundle `index-Bvy78TNs.js`):**
+- **#6 Global active-filter bar.** App-level bar (all tabs) showing active `focus`/`hl` as chips with
+  per-chip ✕, a **Clear all**, a **scope indicator** ("1 project · highlight slice · whole portfolio"),
+  and an explicit **🔗 copy link**.
+- **#8 Analytics zero-states.** BU rollup cards with no projects render "— · Support group · no
+  construction projects" (was "$0.0M · 0 active"); null pipeline/win-rate show "no data" + tooltips
+  (vs a genuine 0).
+- **#10 Export + ask + share.** Each Analytics chart has **CSV** (chart data) + **PNG** (SVG→canvas) +
+  **✦ ask** (opens the chat pre-seeded with a chart-specific question and auto-sends). **Share-link**:
+  "copy link" encodes `{tab,ontoMode,focus,hl}` to the hash on demand only; a shared link is applied on
+  load **and surfaced in the filter bar** (never silently scoped — respects the URL-hash incident; we
+  still only *auto*-persist tab/ontoMode, so a plain reload returns to full).
+- Verified headless: filter bar + Clear all + copy link; 6/6 chart toolbars; zero-states; ask-about-this
+  opens + streams; 0 exceptions.
+
+**Phase 4 — accessibility & responsive — ALSO SHIPPED LIVE (bundle `index-5U-XOR2J.js`):**
+- **#7 a11y + color/shape encoding.** Added `TYPE_SHAPE` (shape-by-domain-family glyphs ● ◆ ▲ ■ ⬢ ★ ▮) so
+  legends + the Data type column don't rely on hue alone (CVD); Data table got `scope="col"` + `aria-sort`
+  + keyboard-activatable rows (Enter) + focus rings; `aria-label`s on the BU/type/search controls;
+  3D auto-drift now defaults OFF under `prefers-reduced-motion: reduce`.
+- **#9b responsive/tablet.** Header wraps; detail rails capped at `max-w-[80vw]`; the Analytics grids +
+  filter toolbars already reflow. Verified: no horizontal overflow at 834px (tablet) or 390px (phone).
+  (Full phone nav-drawer for the 3D/graph side rails deferred — tablet is the stated target.)
+- Verified headless: glyphs in legends, table ARIA, reduced-motion default-off, both viewports, 0 exceptions.
+
+**✅ All 4 review phases complete and live** (3 issues + 10 improvements + 2 latent bugs B1/eval). Edge fn
+deployed once (Phase 1); frontend deployed per phase (4×). **Deferred (noted in ROADMAP):** full phone
+nav-drawer, full graph node-by-node keyboard cycling, network-graph LOD.
+
+---
+
 ## 2026-06-29 — Session 3 (cont.): cloud re-seed LIVE + edge-block incident
 
 - **Cloud re-seeded** with the 8-project dataset via `scripts/reseed-cloud.sh` (user said "you run it").

@@ -3,8 +3,48 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-29 (session 3 — top-15 improvements + data expansion, ALL LIVE)
-**Updated by:** Claude (Opus 4.8) session — Phases A–C shipped live; cloud re-seeded with the 8-project dataset
+**Last updated:** 2026-06-29 (session 4 — external-review response, ALL 4 PHASES LIVE)
+**Updated by:** Claude (Opus 4.8) session — all 13 review items (+2 latent bugs) shipped live across 4 phases
+
+---
+
+## ⚡ Session 4 — external-review response (read this first)
+User pasted a thorough external review of the live app — **3 concrete issues + 10 improvements** —
+and approved a 4-phase plan: **`/home/clawd/.claude/plans/sparkling-singing-lighthouse.md`**
+("deploy when verified"). **Phase 1 = the 3 visible issues — SHIPPED LIVE** at https://clayos.pages.dev:
+
+- **#2 Markdown** — agent answers render via `react-markdown`+`remark-gfm` in `AskDock` (was raw `##`/`**`).
+- **#3 Streaming** — `agent-ask` streams **SSE** when the client sends `Accept: text/event-stream`:
+  `tool` progress events ("pulling KPIs for Aurora") + `token` deltas + a `done` event with
+  `{focus,highlight}`. **JSON path unchanged** (evals); `askStream` (api.js) falls back to JSON if a proxy
+  collapses the stream. AskDock shows a typing indicator + live tool line.
+- **#1 3D crash** — `TypeError … reading 'x'` root-caused (DragControls→`OrbitControls.onPointerUp` on a
+  node drag-end's synthetic pointerup) and fixed with **`.enableNodeDrag(false)`** in `Lifecycle3DView`
+  (nodes are pinned; drag was never wanted). Reproduced + verified 0 exceptions via CDP.
+- **Also:** fixed a pre-existing `evals/run.mjs` bug (`const URL` shadowed the global), refreshed the
+  safety golden (`9.27→9.43`, stale post-reseed). Evals now 5/6 → 6/6 with current data.
+
+**Phase 2 (ontology UX & reliability) — ALSO LIVE** (bundle `index-Cdng8Lyc.js`): resizable/expandable
+chat dock (#4), first-run **OntologyIntro** "what am I looking at?" overlay (#5), 3D **lite** quality
+mode + auto-downgrade <25 fps (#9a), and **fixed the latent 1,000-row PostgREST cap** (B1) so the Data
+table/3D see all 1,711 entities (`fetchAllRows`/`fetchAllRpc` in `api.js` — note the SETOF RPC ignores
+the Range header, pages via ?limit/?offset). Verified headless: 0 exceptions, "of 1,711", chat resize.
+
+**Phase 3 (cross-cutting clarity) — ALSO LIVE** (bundle `index-Bvy78TNs.js`): global active-filter bar +
+Clear all + scope indicator + 🔗 copy-link (#6, App.jsx); Analytics zero-state clarity — support-group BU
+cards + "no data" vs 0 tooltips (#8, DashboardView); per-chart CSV/PNG export + "✦ ask Clayco about this"
+(seeds the chat) + explicit shareable deep-link honored-on-load-but-shown-in-the-bar (#10).
+
+**Phase 4 (accessibility & responsive) — ALSO LIVE** (bundle `index-5U-XOR2J.js`): shape-by-family glyphs
+in legends + Data type column so colour isn't the only cue (#7, `palette.js TYPE_SHAPE`); Data table ARIA
+(scope/aria-sort/keyboard rows/focus); `aria-label`s on controls; 3D drift defaults off under
+`prefers-reduced-motion`; responsive header wrap + `max-w-[80vw]` detail rails (no overflow at 834/390px).
+
+**✅ ALL 4 REVIEW PHASES LIVE.** Edge fn deployed once (Phase 1); frontend deployed 4× (one per phase),
+prod HTTP 200. Verified headless at each phase (0 runtime exceptions). **Deferred (see ROADMAP "Phase
+2.7"):** full phone nav-drawer for the 3D/graph side rails, graph node-by-node keyboard cycling, and
+network-graph LOD — none are blockers; the stated target was tablet. The bundle still ships as two ~1.4 MB
+chunks (3D lazy-loaded) — code-splitting is a known optimization, not a regression.
 
 ---
 

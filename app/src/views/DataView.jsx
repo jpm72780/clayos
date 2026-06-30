@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { allEntities, listBusinessUnits, projectsLite, entityFacts, classificationCodes, entityDetail, neighbors } from "../lib/api.js";
-import { colorFor } from "../lib/palette.js";
+import { colorFor, shapeFor } from "../lib/palette.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clayco Data — every node in the ontology as one sortable, filterable table,
@@ -149,7 +149,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       <div className="flex-1 min-w-0 flex flex-col">
         {/* filter bar + cross-filter chips */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-white/10 text-sm">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, type, project, CSI, status…"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, type, project, CSI, status…" aria-label="Search entities"
             className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm w-60 outline-none focus:border-amber-500/40" />
           <Sel value={typeF} onChange={setTypeF} opts={types} placeholder="All types" />
           <Sel value={domainF} onChange={setDomainF} opts={domains} placeholder="All domains" />
@@ -193,7 +193,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                   {stats.byType.map(([t, v]) => (
                     <button key={t} onClick={() => setTypeF(typeF === t ? "" : t)} className={`flex items-center gap-1.5 text-xs text-left hover:text-white ${typeF === t ? "text-amber-300" : "text-white/70"}`}>
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(t) }} />
+                      <span className="w-3 text-center leading-none shrink-0" style={{ color: colorFor(t) }}>{shapeFor(t)}</span>
                       <span className="flex-1 truncate">{t}</span>
                       <span className="tabular-nums text-white/50">{v.count}</span>
                     </button>
@@ -224,11 +224,14 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
         {/* table */}
         <div className="flex-1 overflow-auto">
           {!ents ? <div className="p-6 text-white/50 text-sm">loading data…</div> : (
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full text-sm border-collapse" aria-label="Clayco entities">
               <thead className="sticky top-0 bg-[#0b0f14] z-10">
                 <tr className="text-left text-white/45 text-xs uppercase tracking-wide">
                   {COLS.map((c) => (
-                    <th key={c.key} onClick={() => setSortKey(c.key)} className={`px-3 py-2 cursor-pointer hover:text-white/80 select-none border-b border-white/10 ${c.align === "right" ? "text-right" : ""}`}>
+                    <th key={c.key} scope="col" tabIndex={0} onClick={() => setSortKey(c.key)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSortKey(c.key); } }}
+                      aria-sort={sort.key === c.key ? (sort.dir > 0 ? "ascending" : "descending") : "none"}
+                      className={`px-3 py-2 cursor-pointer hover:text-white/80 select-none border-b border-white/10 focus:outline-none focus:text-amber-300 focus:ring-1 focus:ring-amber-500/40 ${c.align === "right" ? "text-right" : ""}`}>
                       {c.label}{sort.key === c.key ? (sort.dir > 0 ? " ↑" : " ↓") : ""}
                     </th>
                   ))}
@@ -236,8 +239,10 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
               </thead>
               <tbody>
                 {filtered.slice(0, 800).map((r) => (
-                  <tr key={r.id} onClick={() => openRow(r.id)} className="border-b border-white/5 hover:bg-white/5 cursor-pointer">
-                    <td className="px-3 py-1.5"><span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(r.type) }} />{r.type}</span></td>
+                  <tr key={r.id} onClick={() => openRow(r.id)} tabIndex={0} aria-label={`${r.type}: ${r.name}`}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); openRow(r.id); } }}
+                    className="border-b border-white/5 hover:bg-white/5 focus:bg-white/10 focus:outline-none cursor-pointer">
+                    <td className="px-3 py-1.5"><span className="inline-flex items-center gap-1.5"><span className="w-3 text-center leading-none shrink-0" style={{ color: colorFor(r.type) }}>{shapeFor(r.type)}</span>{r.type}</span></td>
                     <td className="px-3 py-1.5 text-white/90 max-w-[26rem] truncate">{r.name}</td>
                     <td className="px-3 py-1.5 text-white/55 capitalize">{r.domain.replace(/_/g, " ")}</td>
                     <td className="px-3 py-1.5 text-white/70">{r.project}</td>
@@ -258,7 +263,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       </div>
 
       {selected && (
-        <aside className="w-80 shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <div className="flex items-center justify-between mb-2">
@@ -289,7 +294,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
 
 function Sel({ value, onChange, opts, placeholder }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white/80 outline-none">
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={placeholder} className="bg-white/5 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white/80 outline-none">
       <option value="">{placeholder}</option>
       {opts.map((o) => <option key={o} value={o}>{o}</option>)}
     </select>

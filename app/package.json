@@ -15,7 +15,9 @@
     "graphology-layout-forceatlas2": "^0.10.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^9.1.0",
     "recharts": "^2.12.7",
+    "remark-gfm": "^4.0.1",
     "sigma": "^3.0.0",
     "three": "^0.185.0",
     "three-spritetext": "^1.10.0"

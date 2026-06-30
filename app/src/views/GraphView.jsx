@@ -3,7 +3,7 @@ import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import Sigma from "sigma";
 import { subgraph, entityDetail } from "../lib/api.js";
-import { colorFor, DOMAINS, TYPE_COLOR } from "../lib/palette.js";
+import { colorFor, shapeFor, DOMAINS, TYPE_COLOR } from "../lib/palette.js";
 
 export default function GraphView({ businessUnit }) {
   const containerRef = useRef(null);
@@ -82,7 +82,7 @@ export default function GraphView({ businessUnit }) {
         <div className="space-y-1">
           {presentTypes.map((t) => (
             <div key={t} className="flex items-center gap-2 text-white/70">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorFor(t) }} />{t}
+              <span className="w-3.5 text-center leading-none shrink-0" style={{ color: colorFor(t) }}>{shapeFor(t)}</span>{t}
             </div>
           ))}
         </div>
@@ -96,7 +96,7 @@ export default function GraphView({ businessUnit }) {
       </div>
 
       {selected && (
-        <aside className="w-80 shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <div className="flex items-center gap-2 mb-1">

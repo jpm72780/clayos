@@ -7,7 +7,8 @@ import {
   subgraph, entityDetail, classificationCodes, entityClassMap, entityFacts,
   buRollup, evmByProject, fieldByProject, safetyByProject,
 } from "../lib/api.js";
-import { colorFor, TYPE_COLOR } from "../lib/palette.js";
+import { colorFor, shapeFor, TYPE_COLOR } from "../lib/palette.js";
+import OntologyIntro from "../components/OntologyIntro.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ClayOS — one interface.
@@ -162,7 +163,12 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   const [evm, setEvm] = useState([]); const [field, setField] = useState([]); const [safety, setSafety] = useState([]); const [rollup, setRollup] = useState([]);
   const [selected, setSelected] = useState(null);   // detail rail (focus + hl are shared via props)
   const [loading, setLoading] = useState(true);
-  const [spin, setSpin] = useState(true);
+  // honor prefers-reduced-motion: the drifting auto-orbit can bother vestibular users
+  const [spin, setSpin] = useState(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } });
+  // "lite" mode = no bloom, no flow particles, lower node resolution — for weak GPUs.
+  // Toggled manually or auto-enabled once if the opening seconds run below ~25 fps.
+  const [lite, setLite] = useState(false);
+  const liteRef = useRef(false); useEffect(() => { liteRef.current = lite; }, [lite]);
   // flow controls (recent-activity particles)
   const [windowIdx, setWindowIdx] = useState(2); // 60d
   const [flowSpeed, setFlowSpeed] = useState(0.0018);
@@ -262,10 +268,15 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     const g = ForceGraph3D({ controlType: "orbit" })(el)
       .backgroundColor("#05070b")
       .showNavInfo(false)
+      // Nodes are pinned (fx/fy/fz) and the camera is orbit-driven — node dragging is
+      // neither wired nor wanted, and DragControls' dragend fires a synthetic pointerup
+      // into OrbitControls.onPointerUp that crashes ("reading 'x'" on an untracked
+      // pointer). Disabling it removes DragControls entirely; clicks/orbit are unaffected.
+      .enableNodeDrag(false)
       .width(el.clientWidth).height(el.clientHeight)
       .graphData({ nodes: graph.nodes, links: graph.links })
       .cooldownTicks(1) // nodes are pinned (fx/fy/fz); 1 tick initialises link curves for particles
-      .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(9)
+      .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(lite ? 5 : 9)
       .nodeLabel((n) => { const h = hotRef.current; if (h && !h.set.has(n.id)) return ""; return `<div style="font-size:12px"><b>${n.label}</b><br/><span style="opacity:.6">${n.type} · ${n.domain}</span></div>`; })
       .linkCurvature(0.22)
       // paths are a quiet, thin structure; thickness grows with the $ a record carries
@@ -273,7 +284,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       .linkColor((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? "#f59e0b" : "#0a0e14"; return l.amt > 1e6 ? "#26384b" : (l.cross ? "#22303f" : "#161f29"); })
       .linkOpacity(0.32)
       // particles = actual data points that moved within the window; colour = what moved, speed = how recent
-      .linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0))
+      .linkDirectionalParticles((l) => (!lite && l.rh <= windowRef.current ? 1 : 0))
       .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
       .onNodeClick(async (n) => {
         const h = hotRef.current; if (h && !h.set.has(n.id)) return; // greyed-out → not selectable
@@ -305,9 +316,11 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     }
     g.scene().add(new THREE.AmbientLight(0xffffff, 0.95));
 
-    // glow — gentle, so labels stay legible (only bright cores bloom)
-    const bloom = new UnrealBloomPass(new THREE.Vector2(el.clientWidth, el.clientHeight), 0.7, 0.5, 0.22);
-    g.postProcessingComposer().addPass(bloom);
+    // glow — gentle, so labels stay legible (only bright cores bloom). Skipped in lite mode.
+    if (!lite) {
+      const bloom = new UnrealBloomPass(new THREE.Vector2(el.clientWidth, el.clientHeight), 0.7, 0.5, 0.22);
+      g.postProcessingComposer().addPass(bloom);
+    }
 
     // hub pulse: each project breathes brighter the more it's moved recently
     const halos = [];
@@ -323,13 +336,24 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       halos.push({ mesh: halo, base: c.radius * 0.6, pid: c.pid, phase: (c.center.x % 11) });
     }
     let raf;
+    // FPS watch: average the first few seconds; if it's struggling on a weak GPU,
+    // auto-downgrade to lite once (drops bloom + particles, which dominate cost).
+    let fpsStart = performance.now(), frames = 0, fpsChecked = false;
     const animate = () => {
-      const t = performance.now() / 1000;
+      const now = performance.now(), t = now / 1000;
       for (const h of halos) {
         const I = hubIntensityRef.current.get(h.pid) || 0;
         const pulse = 0.55 + 0.45 * Math.sin(t * 1.7 + h.phase);
         h.mesh.material.opacity = 0.02 + 0.24 * I * pulse;
         h.mesh.scale.setScalar(h.base * (1 + 0.14 * I * pulse));
+      }
+      if (!fpsChecked && !liteRef.current) {
+        frames++;
+        const elapsed = now - fpsStart;
+        if (elapsed > 3000) { // give it a moment to settle, then judge
+          if (frames / (elapsed / 1000) < 25) setLite(true);
+          fpsChecked = true;
+        }
       }
       raf = requestAnimationFrame(animate);
     };
@@ -356,11 +380,11 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       try { g._destructor && g._destructor(); } catch { /* noop */ }
       fgRef.current = null; if (el) el.innerHTML = "";
     };
-  }, [graph]);
+  }, [graph, lite]); // rebuild when quality mode flips
 
   useEffect(() => {
     const g = fgRef.current; if (!g) return;
-    g.nodeColor(nodeColor).nodeVal(nodeVal).linkColor(g.linkColor()).linkWidth(g.linkWidth()).linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0));
+    g.nodeColor(nodeColor).nodeVal(nodeVal).linkColor(g.linkColor()).linkWidth(g.linkWidth()).linkDirectionalParticles((l) => (!liteRef.current && l.rh <= windowRef.current ? 1 : 0));
     // turn off raycast on greyed-out nodes so colored (filtered) ones are easy to grab
     for (const n of g.graphData().nodes) {
       const obj = n.__threeObj; if (!obj) continue;
@@ -372,7 +396,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   // focus changed from anywhere (click / Data row / agent) → fly the camera there
   useEffect(() => { if (focus?.pid) flyTo(focus.pid); }, [focus?.pid]); // eslint-disable-line
   // flow controls → live-update the particle system
-  useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
+  useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (!liteRef.current && l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
   useEffect(() => { flowSpeedRef.current = flowSpeed; const g = fgRef.current; if (g) g.linkDirectionalParticleSpeed(particleSpeed); }, [flowSpeed, graph]);
   useEffect(() => { flowSizeRef.current = flowSize; const g = fgRef.current; if (g) g.linkDirectionalParticleWidth(flowSize); }, [flowSize, graph]);
   const activeCount = useMemo(() => (graph ? graph.nodes.filter((n) => n.type !== "Project" && n.rh <= WINDOWS[windowIdx].h).length : 0), [graph, windowIdx]);
@@ -425,12 +449,13 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           <div>Thicker vessels carry more <b>$</b> (contracts, pay-apps, cost). Click a project → KPIs + agent rescope.</div>
         </div>
         <div className="text-white/40 text-[10px] uppercase tracking-wide mt-4 mb-1">Entity types</div>
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5">{Object.keys(TYPE_COLOR).map((t) => (<div key={t} className="flex items-center gap-1 text-[10px] text-white/55"><span className="w-2 h-2 rounded-full" style={{ background: colorFor(t) }} />{t}</div>))}</div>
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5">{Object.keys(TYPE_COLOR).map((t) => (<div key={t} className="flex items-center gap-1 text-[10px] text-white/55"><span className="w-3 text-center leading-none shrink-0" style={{ color: colorFor(t) }}>{shapeFor(t)}</span>{t}</div>))}</div>
         <style>{`.cl-select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 6px;font-size:12px;color:#e5e7eb}`}</style>
       </aside>
 
       <div className="relative flex-1 min-w-0">
         <div ref={mountRef} className="absolute inset-0" />
+        <OntologyIntro />
 
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
           <div className="text-sm text-white/80 font-medium">Clayco ontology — interwoven project systems</div>
@@ -442,7 +467,11 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           )}
         </div>
 
-        <button onClick={() => setSpin((s) => !s)} className="absolute top-3 right-3 z-10 text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
+        <div className="absolute top-3 right-11 z-10 flex items-center gap-1.5">
+          <button onClick={() => setLite((v) => !v)} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
+            className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{lite ? "○ lite" : "● full"}</button>
+          <button onClick={() => setSpin((s) => !s)} className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
+        </div>
 
         {/* flow controls — what's moving, how fast, how big */}
         <div className="absolute left-3 bottom-24 z-20 w-56 bg-[#0d1218]/90 border border-white/10 rounded-xl p-3 text-xs">
@@ -493,7 +522,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       </div>
 
       {selected && (
-        <aside className="w-80 shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white/70 text-xs mb-2">✕ close</button>

@@ -9,6 +9,20 @@ export const TYPE_COLOR = {
 };
 export const colorFor = (t) => TYPE_COLOR[t] || "#9ca3af";
 
+// Shape per domain family — a redundant, color-independent cue so the legends don't
+// rely on hue alone (helps color-vision-deficient users). Color still varies per type
+// within a family, so shape(family) + colour(type) reads as distinct.
+export const TYPE_SHAPE = {
+  Project: "●", Phase: "●", Work: "●", Activity: "●",            // project structure
+  CostAccount: "◆", PayApp: "◆", Contract: "◆",                  // financial
+  RFI: "▲", Submittal: "▲", DailyLog: "▲", QualityEvent: "▲", SafetyEvent: "▲", // field / quality / safety
+  Space: "■", BuildingElement: "■", Document: "■",               // design / spaces / docs
+  Person: "⬢", Organization: "⬢",                                // people / orgs
+  Pursuit: "★", Estimate: "★", Requisition: "★",                 // pipeline
+  ITAsset: "▮",                                                  // IT
+};
+export const shapeFor = (t) => TYPE_SHAPE[t] || "●";
+
 export const DOMAINS = [
   "project", "project_controls", "design", "field_ops", "safety", "quality",
   "financials", "procurement", "business_development", "estimating", "enterprise", "hr", "recruiting", "it",

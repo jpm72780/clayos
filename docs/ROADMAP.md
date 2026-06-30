@@ -86,6 +86,29 @@ Designed / deferred:
 - [ ] kg_entity_facts pagination (PostgREST 1,000-row cap vs 1,711 entities)
 - [ ] Robustness: avoid hammering the `micro` Supabase instance (edge abuse-protection 503s)
 
+## Phase 2.7 — External-review response (session 4, 2026-06-29)
+Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10 improvements, 4 phases).
+**Phase 1 — the 3 visible issues — SHIPPED LIVE:**
+- [x] #2 Markdown rendering of agent answers (`react-markdown`+`remark-gfm` in AskDock)
+- [x] #3 Streaming agent responses over SSE (tool-progress labels + token deltas + typing indicator); JSON path kept for evals
+- [x] #1 Fix 3D `reading 'x'` crash (`enableNodeDrag(false)` — DragControls→OrbitControls pointerup); reproduced + verified 0 exceptions
+- [x] Eval harness bug fix (`URL` shadowing) + refreshed safety golden post-reseed
+**Phase 2 — ontology UX & reliability — SHIPPED LIVE:**
+- [x] #4 Resizable / expandable chat dock (drag grip + expand toggle + localStorage)
+- [x] #5 Onboarding / "what am I looking at?" overlay (`OntologyIntro`, persisted + "?" reopen)
+- [x] #9a 3D perf: lite quality mode (no bloom/particles, lower res) + auto-downgrade <25 fps
+- [x] B1 — fixed 1,000-row PostgREST cap (`fetchAllRows` Range paging + `fetchAllRpc` limit/offset paging)
+- [~] Network LOD (deferred — Sigma already has label thresholds + iteration caps; revisit with #9b)
+**Phase 3 — cross-cutting clarity — SHIPPED LIVE:**
+- [x] #6 Global active-filter bar + clear-all + scope indicator + 🔗 copy-link (App.jsx)
+- [x] #8 Analytics zero-states (support-group BU cards; "no data" vs 0 with tooltips)
+- [x] #10 Per-chart CSV + PNG export, "✦ ask Clayco about this", explicit shareable deep-link
+**Phase 4 — accessibility & responsive — SHIPPED LIVE:**
+- [x] #7 color/shape encoding (`TYPE_SHAPE` glyphs in legends + table), Data table ARIA (scope/aria-sort/
+      keyboard rows/focus), `aria-label`s on controls, 3D drift off under prefers-reduced-motion
+- [x] #9b responsive: header wrap, detail rails `max-w-[80vw]`; verified no overflow at 834/390px
+- [~] Deferred: full phone nav-drawer for 3D/graph side rails; graph node-by-node keyboard cycling; network LOD
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [x] Agent eval set (golden Q→A) — `evals/`

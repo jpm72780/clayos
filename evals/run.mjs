@@ -6,9 +6,9 @@
 // Env: CLAYOS_SUPABASE_URL + CLAYOS_SUPABASE_ANON_KEY (or source ~/.config/clayos.env).
 import { readFileSync } from "node:fs";
 
-const URL = process.env.CLAYOS_SUPABASE_URL;
+const BASE = process.env.CLAYOS_SUPABASE_URL; // (not `URL` — that shadows the global URL constructor used below)
 const KEY = process.env.CLAYOS_SUPABASE_ANON_KEY;
-if (!URL || !KEY) { console.error("Set CLAYOS_SUPABASE_URL + CLAYOS_SUPABASE_ANON_KEY"); process.exit(2); }
+if (!BASE || !KEY) { console.error("Set CLAYOS_SUPABASE_URL + CLAYOS_SUPABASE_ANON_KEY"); process.exit(2); }
 
 const cases = readFileSync(new URL("./agent.jsonl", import.meta.url), "utf8")
   .trim().split("\n").map((l) => JSON.parse(l));
@@ -17,7 +17,7 @@ let pass = 0, fail = 0;
 for (const c of cases) {
   let ok = true, notes = [];
   try {
-    const r = await fetch(`${URL}/functions/v1/agent-ask`, {
+    const r = await fetch(`${BASE}/functions/v1/agent-ask`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ question: c.q }),

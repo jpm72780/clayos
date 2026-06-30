@@ -113,3 +113,51 @@ instead of tabs; the 3D/vascular metaphor makes data concentration + cross-syste
 glance. Force-graph fixes node positions (deterministic layout) yet keeps every edge connected.
 **Trade-offs:** +~1.4 MB lazy 3D chunk; WebGL/bloom cost; flow recency is synthetic-but-real (derived
 from seed dates). Revisit if node counts grow past ~5k (LOD/expand-on-demand).
+
+## ADR-012 — Agent answers stream over SSE (tool progress + token deltas)
+**Status:** Accepted (2026-06-29, session 4 — external review #3)
+**Context:** The agent is a multi-turn (≤24) tool loop; the UI showed a static "analyzing…" for the full
+12–15s and rendered the final answer all at once. The review asked to stream tokens, show a typing
+indicator, and surface what the agent is doing.
+**Decision:** `agent-ask` content-negotiates: `Accept: text/event-stream` → an SSE stream that emits a
+`tool` event (with a friendly label) as each kg_* call runs, `token` events from a streamed final
+Anthropic call, and a terminal `done` event with `{focus,highlight,tool_calls}`. The `@@VIEW@@` view-
+control marker is **tail-buffered server-side** so it never appears in the visible token stream, then
+parsed for the `done` payload. Without that header the original **blocking JSON** path is unchanged
+(used by `evals/`). The client (`api.js#askStream`) parses SSE and **falls back** to reading a whole
+JSON body if the response isn't `text/event-stream` (old function / a proxy that collapses the stream),
+so chat can never regress below today's behavior.
+**Rationale:** Real perceived-latency win + grounding visibility, with zero risk to the eval contract or
+to clients behind buffering proxies. Streaming only the final turn (and narrating tool steps) keeps the
+loop logic simple while giving live feedback throughout.
+**Trade-offs:** intermediate "let me check…" narration from a tool-turn can briefly precede the final
+answer in the same bubble (usually tool-only turns have no text, so this is rare and reads naturally).
+
+## ADR-014 — Client-side pagination for the 1,000-row PostgREST cap (RPCs need ?limit/?offset)
+**Status:** Accepted (2026-06-29, session 4 — latent bug B1)
+**Context:** PostgREST caps every response at 1,000 rows (`db-max-rows`). The graph is 1,711 entities, so
+`allEntities` (Data table + quantification + CSV), `entityClassMap` (3D highlight) and `entityFacts`
+(flow/$) were silently returning only the first 1,000 — invisible from outside the app.
+**Decision:** Page on the client in `api.js`. **Table reads honor the `Range` header**, so `fetchAllRows`
+loops `.range(from,to)` with a deterministic `.order()` (a secondary key, or pages overlap). **The SETOF
+RPC `kg_entity_facts` IGNORES the Range header** but honors `?limit`/`?offset` query params — verified by
+curl — so `fetchAllRpc` pages those via direct `fetch` to `/rest/v1/rpc/...` (with `Accept-Profile:
+clayos`). Both have a 50-page safety cap so a server that ignores paging can't infinite-loop.
+**Rationale:** No schema/RPC change; the whole dataset reaches the UI. The Range-vs-limit/offset split is
+the non-obvious part — `supabase-js .range()` sends a Range header that the RPC drops, which would loop
+on duplicate first pages. **Future:** if the dataset grows large, raise `db-max-rows` or add server-side
+keyset pagination instead of fetching everything.
+
+## ADR-013 — Disable node-drag in Lifecycle 3D (fixes the `reading 'x'` crash)
+**Status:** Accepted (2026-06-29, session 4 — external review #1)
+**Context:** The 3D view threw repeated `TypeError: Cannot read properties of undefined (reading 'x')`
+on interaction. Reproduced via CDP: `OrbitControls.onPointerUp` has a `case 1:` branch that reads
+`this._pointerPositions[pointerId].x` for an untracked pointer; it's reached because, when a node **drag**
+ends, 3d-force-graph dispatches a synthetic `pointerup` ("ensure the controls don't take over after
+dragend") that OrbitControls processes against a pointer it never recorded.
+**Decision:** `.enableNodeDrag(false)` on the ForceGraph3D instance. This skips DragControls creation
+entirely, removing the DragControls→OrbitControls pointer hand-off that crashes.
+**Rationale:** Every node is pinned (`fx/fy/fz`) and the camera is orbit-driven — node dragging was
+never wired (no `onNodeDrag`/`onNodeDragEnd`) and fights the deterministic layout. Disabling it is the
+minimal, intent-aligned fix; node clicks and camera orbit/pan/zoom are unaffected. Verified 0 exceptions
+across aggressive drags / sliders / highlight changes / business-unit rebuilds / resize.
