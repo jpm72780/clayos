@@ -16,7 +16,7 @@
 - [x] Migration 008 — RLS/grants + clayos_readonly role
 - [x] Migration 009 — pg_cron (guarded)
 - [x] `seed/generate.py` (curated MasterFormat/UniFormat inline); seed 3 BUs / 6 projects
-- [ ] Embed entities (OpenAI) so kg_search works  ← moved to Phase 1 (needs key/edge fn)
+- [x] Embed entities so kg_search works (all 1,711 drained; Claude-side embeddings — done session 3)
 - **Exit ✅:** kg_traverse returns cross-domain paths (Aurora→255 @2hops); kg_bu_rollup sensible
   ($1.79B/6 projects); Aurora CPI 0.91 & SPI 0.84 (<1). 750 entities / 1004 edges.
 
@@ -34,9 +34,9 @@ Scope: all five layers thin, live. **App: https://clayos.pages.dev**
   numbers (Aurora CPI 0.91, EAC $396.9M). Browser visual-verify of the UI = the one remaining check (Phase 2 #1).
 
 ## Phase 2 — Widen + deepen
-- [ ] All 3 BUs, full lifecycle coverage in seed
-- [ ] `kg_query` text-to-SQL with the safety harness (clayos_readonly, single-SELECT, timeout)
-- [ ] WIP/backlog/TRIR/utilization matviews + kpi_history trend charts
+- [x] All BUs + CRG dev arm, deeper lifecycle coverage in seed (session 3 Phase B — 8 projects, 1,711 entities)
+- [x] `kg_query` text-to-SQL with the safety harness (session 3 Phase C — migration 011)
+- [x] WIP/backlog/TRIR/utilization surfaced in Analytics + kpi_history trend charts (session 3)
 - [ ] RLS scoping by role (field user vs. exec) + per-turn world-state injection tuned
 
 ## Phase 2.5 — Unified 3D "vascular" ontology workspace (session 2, 2026-06-28) — IN PROGRESS
@@ -134,4 +134,4 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [ ] Optional: RDF / ifcOWL / BOT alignment layer for semantic interoperability
 
 ## Provisioning (cross-cutting — see INFRA.md checklist)
-- [ ] ClayOS Supabase project · [ ] GitHub repo · [ ] Cloudflare Pages project · [ ] deploy
+- [x] ClayOS Supabase project · [x] GitHub repo · [x] Cloudflare Pages project · [x] deploy (all live since session 1)
