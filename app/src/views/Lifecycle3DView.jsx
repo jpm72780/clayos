@@ -9,6 +9,11 @@ import {
 } from "../lib/api.js";
 import { colorFor, shapeFor, TYPE_COLOR } from "../lib/palette.js";
 import OntologyIntro from "../components/OntologyIntro.jsx";
+import { defOf } from "../lib/glossary.js";
+import { loadPrefs } from "../lib/prefs.js";
+
+// literal-labels preference: read once per mount (App remounts the view on change)
+const LITERAL = () => loadPrefs().literal;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ClayOS — one interface.
@@ -163,6 +168,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   const [evm, setEvm] = useState([]); const [field, setField] = useState([]); const [safety, setSafety] = useState([]); const [rollup, setRollup] = useState([]);
   const [selected, setSelected] = useState(null);   // detail rail (focus + hl are shared via props)
   const [loading, setLoading] = useState(true);
+  const [railOpen, setRailOpen] = useState(false);  // mobile highlight/filters drawer
+  const [literal] = useState(LITERAL);              // plain terms instead of the flow metaphor
   // honor prefers-reduced-motion: the drifting auto-orbit can bother vestibular users
   const [spin, setSpin] = useState(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } });
   // "lite" mode = no bloom, no flow particles, lower node resolution — for weak GPUs.
@@ -371,11 +378,19 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     }
 
     fgRef.current = g;
+    // clamp DPR so high-density phones don't over-allocate the WebGL backing store
+    try { g.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); } catch { /* noop */ }
     if (focus?.pid) flyTo(focus.pid); // mounted with a project already focused (e.g. from Data/Ask)
+    // resize the renderer to the *container* (not just the window) so mobile stacking,
+    // the filters drawer, and orientation changes all re-fit the canvas instead of
+    // leaving it sized to its first (desktop) layout.
     const onResize = () => g.width(el.clientWidth).height(el.clientHeight);
-    window.addEventListener("resize", onResize);
+    const ro = (typeof ResizeObserver !== "undefined") ? new ResizeObserver(onResize) : null;
+    if (ro) ro.observe(el); else window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
     return () => {
-      window.removeEventListener("resize", onResize);
+      if (ro) ro.disconnect(); else window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
       cancelAnimationFrame(raf);
       try { g._destructor && g._destructor(); } catch { /* noop */ }
       fgRef.current = null; if (el) el.innerHTML = "";
@@ -417,8 +432,19 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   const pick = (dim, value, label, depth = null) => setHl(value ? { dim, value, label, depth } : null);
 
   return (
-    <div className="h-full flex">
-      <aside className="w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14]">
+    <div className="h-full flex flex-col md:flex-row">
+      {/* mobile-only toolbar: open the highlight/filters drawer */}
+      <div className="md:hidden shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/10 bg-[#0b0f14]">
+        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-2 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Highlight / filters</button>
+        {hl && <span className="text-xs text-amber-200/80 truncate">{hl.label}</span>}
+      </div>
+      {/* drawer backdrop (mobile) */}
+      {railOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/50" onClick={() => setRailOpen(false)} />}
+
+      <aside className={`w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14] md:static md:block
+        max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:max-w-[85vw] max-md:shadow-2xl
+        ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
+        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 text-xs text-white/45 hover:text-white/80">✕ close</button>
         <div className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</div>
         <div className="text-white/35 text-[11px] mb-3 leading-snug">Light up the keys that carry data <em>between</em> systems — across every project at once.</div>
         <Field label="MasterFormat · CSI code">
@@ -444,22 +470,32 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         {hl && (<button onClick={() => setHl(null)} className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">✕ clear highlight</button>)}
         <div className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Reading it</div>
         <div className="text-[10px] text-white/50 leading-snug space-y-1">
-          <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit; it <b>pulses</b> brighter the more it has moved lately.</div>
-          <div>Each pulse = a <b>real data point that moved</b> in the window (colour = what kind); faster = more recent.</div>
-          <div>Thicker vessels carry more <b>$</b> (contracts, pay-apps, cost). Click a project → KPIs + agent rescope.</div>
+          {literal ? (
+            <>
+              <div>Each sphere = a <b>project</b>, tinted by business unit; it brightens the more records changed recently.</div>
+              <div>Each moving dot = a <b>record updated</b> in the time window (colour = record type); faster = more recent.</div>
+              <div>Thicker links carry more <b>contract $</b> (contracts, pay apps, cost accounts). Click a project → KPIs + agent rescope.</div>
+            </>
+          ) : (
+            <>
+              <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit; it <b>pulses</b> brighter the more it has moved lately.</div>
+              <div>Each pulse = a <b>real data point that moved</b> in the window (colour = what kind); faster = more recent.</div>
+              <div>Thicker vessels carry more <b>$</b> (contracts, pay-apps, cost). Click a project → KPIs + agent rescope.</div>
+            </>
+          )}
         </div>
         <div className="text-white/40 text-[10px] uppercase tracking-wide mt-4 mb-1">Entity types</div>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">{Object.keys(TYPE_COLOR).map((t) => (<div key={t} className="flex items-center gap-1 text-[10px] text-white/55"><span className="w-3 text-center leading-none shrink-0" style={{ color: colorFor(t) }}>{shapeFor(t)}</span>{t}</div>))}</div>
         <style>{`.cl-select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 6px;font-size:12px;color:#e5e7eb}`}</style>
       </aside>
 
-      <div className="relative flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0 min-h-0 max-md:h-[60vh]">
         <div ref={mountRef} className="absolute inset-0" />
         <OntologyIntro />
 
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
-          <div className="text-sm text-white/80 font-medium">Clayco ontology — interwoven project systems</div>
-          <div className="text-xs text-white/45 mt-0.5">orbit: left/middle drag · pan: right drag · zoom: scroll · click a project to focus everything on it.</div>
+          <div className="text-sm text-white/80 font-medium">{literal ? "Clayco ontology — projects and the systems they share" : "Clayco ontology — interwoven project systems"}</div>
+          <div className="text-xs text-white/45 mt-0.5 max-md:hidden">orbit: left/middle drag · pan: right drag · zoom: scroll · click a project to focus everything on it.</div>
           {hl && hot && (
             <div className="mt-2 inline-block bg-amber-500/15 text-amber-200 text-xs rounded px-2 py-1 pointer-events-auto">
               Highlighting <b>{SYSTEM_LABEL[hl.dim] || (hl.dim === "vendor" ? "Vendor" : "Employee")}</b> · {hl.label}<span className="text-amber-200/70"> — {hot.count} pts across {hot.pids.size} project{hot.pids.size === 1 ? "" : "s"}</span>
@@ -476,8 +512,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         {/* flow controls — what's moving, how fast, how big */}
         <div className="absolute left-3 bottom-24 z-20 w-56 bg-[#0d1218]/90 border border-white/10 rounded-xl p-3 text-xs">
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-white/70 font-medium">Flow · recent activity</span>
-            <span className="text-cyan-300/90">{activeCount} moved</span>
+            <span className="text-white/70 font-medium">{literal ? "Recent activity" : "Flow · recent activity"}</span>
+            <span className="text-cyan-300/90">{activeCount} {literal ? "updated" : "moved"}</span>
           </div>
           <label className="block text-white/45 text-[10px] mt-1">Active in the last <b className="text-white/70">{WINDOWS[windowIdx].label}</b></label>
           <input type="range" min="0" max={WINDOWS.length - 1} step="1" value={windowIdx} onChange={(e) => setWindowIdx(+e.target.value)} className="cl-range" />
@@ -501,8 +537,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           <div className="flex flex-wrap gap-2">
             {strip.mode === "slice" ? (
               <>
-                <Kpi label="$ carried" value={fmt$(strip.amount)} />
-                <Kpi label="Data points" value={strip.points} />
+                <Kpi label={literal ? "Value in slice" : "$ carried"} value={fmt$(strip.amount)} />
+                <Kpi label={literal ? "Records" : "Data points"} value={strip.points} />
                 <Kpi label="Projects touched" value={strip.projects} />
                 {strip.top.map(([t, c]) => <Kpi key={t} label={t} value={c} />)}
               </>
@@ -522,7 +558,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       </div>
 
       {selected && (
-        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]
+          max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:w-full max-md:max-w-none max-md:border-l-0 max-md:border-t max-md:rounded-t-xl max-md:max-h-[70vh] max-md:pb-16 max-md:shadow-2xl">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white/70 text-xs mb-2">✕ close</button>
@@ -546,9 +583,11 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
 function Field({ label, children }) { return (<div className="mb-3"><div className="text-white/55 text-[11px] mb-1">{label}</div>{children}</div>); }
 function Kpi({ label, value, sub, warn }) {
+  const def = defOf(label);
   return (
     <div className="bg-[#0d1218]/85 border border-white/10 rounded-lg px-3 py-1.5 min-w-[92px]">
-      <div className="text-[10px] text-white/45">{label}</div>
+      <div title={def || undefined}
+        className={`text-[10px] text-white/45${def ? " cursor-help underline decoration-dotted decoration-white/25 underline-offset-2" : ""}`}>{label}</div>
       <div className={`text-lg font-semibold leading-tight ${warn ? "text-red-400" : "text-white/90"}`}>{value}</div>
       {sub && <div className={`text-[10px] ${warn ? "text-red-400/80" : "text-white/40"}`}>{sub}</div>}
     </div>

@@ -12,6 +12,20 @@ export default function GraphView({ businessUnit }) {
   const [stats, setStats] = useState({ nodes: 0, edges: 0 });
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [railOpen, setRailOpen] = useState(false); // mobile filters drawer
+
+  // Sigma's backing canvases don't track container size on their own, so when the
+  // layout reflows (mobile stacking / drawer / rotate) they render into a clipped
+  // strip. Observe the container and resize+refresh the live instance.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const sync = () => { const s = sigmaRef.current; if (s) { s.resize(); s.refresh(); } };
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    window.addEventListener("orientationchange", sync);
+    return () => { ro.disconnect(); window.removeEventListener("orientationchange", sync); };
+  }, []);
 
   useEffect(() => {
     let killed = false;
@@ -67,8 +81,19 @@ export default function GraphView({ businessUnit }) {
   const presentTypes = useMemo(() => Object.keys(TYPE_COLOR), []);
 
   return (
-    <div className="h-full flex">
-      <aside className="w-56 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm">
+    <div className="h-full flex flex-col md:flex-row">
+      {/* mobile-only toolbar: open the filters drawer + show counts */}
+      <div className="md:hidden shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/10 bg-[#0b0f14]">
+        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-2 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Filters</button>
+        <span className="text-xs text-white/45">{loading ? "loading graph…" : `${stats.nodes} nodes · ${stats.edges} edges`}</span>
+      </div>
+      {/* drawer backdrop (mobile) */}
+      {railOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/50" onClick={() => setRailOpen(false)} />}
+
+      <aside className={`w-56 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14] md:static md:block
+        max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-64 max-md:max-w-[85vw] max-md:shadow-2xl
+        ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
+        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 text-xs text-white/45 hover:text-white/80">✕ close</button>
         <div className="text-white/40 text-xs uppercase tracking-wide mb-2">Domains</div>
         <div className="space-y-1">
           {DOMAINS.map((d) => (
@@ -88,15 +113,17 @@ export default function GraphView({ businessUnit }) {
         </div>
       </aside>
 
-      <div className="relative flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0 min-h-0 max-md:h-[60vh]">
         <div ref={containerRef} className="absolute inset-0" />
-        <div className="absolute top-3 left-3 text-xs text-white/50 bg-black/40 rounded px-2 py-1">
+        <div className="absolute top-3 left-3 text-xs text-white/50 bg-black/40 rounded px-2 py-1 max-md:hidden">
           {loading ? "loading graph…" : `${stats.nodes} nodes · ${stats.edges} edges`}
         </div>
       </div>
 
       {selected && (
-        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]
+          max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:w-full max-md:max-w-none max-md:border-l-0 max-md:border-t max-md:rounded-t-xl max-md:max-h-[70vh] max-md:pb-16 max-md:shadow-2xl">
+          <button onClick={() => setSelected(null)} className="md:hidden mb-2 text-xs text-white/45 hover:text-white/80">✕ close</button>
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <div className="flex items-center gap-2 mb-1">

@@ -2,3 +2,12 @@
 
 html, body, #root { height: 100%; margin: 0; }
 body { background: #0b0f14; color: #e6edf3; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+
+/* Higher-contrast mode (display prefs): lift the dim text tiers + hairline borders. */
+.cl-contrast .text-white\/30, .cl-contrast .text-white\/35,
+.cl-contrast .text-white\/40, .cl-contrast .text-white\/45 { color: rgb(255 255 255 / 0.78); }
+.cl-contrast .text-white\/50, .cl-contrast .text-white\/55,
+.cl-contrast .text-white\/60 { color: rgb(255 255 255 / 0.88); }
+.cl-contrast .text-white\/70, .cl-contrast .text-white\/75,
+.cl-contrast .text-white\/80 { color: rgb(255 255 255 / 0.97); }
+.cl-contrast .border-white\/10 { border-color: rgb(255 255 255 / 0.28); }

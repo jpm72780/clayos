@@ -7,6 +7,8 @@ import {
   buRollup, evmByProject, fieldByProject, safetyByProject,
   wipByProject, backlogByBu, pipelineByBu, utilizationByBu, kpiHistory,
 } from "../lib/api.js";
+import { defOf } from "../lib/glossary.js";
+import { SkeletonStats, SkeletonCard } from "../components/Skeleton.jsx";
 
 const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(1) + "M");
 const fmtPct = (n) => (n == null ? "—" : (Number(n) * 100).toFixed(0) + "%");
@@ -57,10 +59,21 @@ function Card({ title, children, sub, csvRows, name, ask, onAsk }) {
 }
 const tip = { contentStyle: { background: "#0d1218", border: "1px solid #1f2733", borderRadius: 8, fontSize: 12 } };
 
+// metric label with a plain-language hover definition when the glossary knows it
+function MetricLabel({ children, className = "text-[10px] text-white/45" }) {
+  const def = defOf(children);
+  return (
+    <div title={def || undefined}
+      className={`${className}${def ? " cursor-help underline decoration-dotted decoration-white/25 underline-offset-2" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
 function Stat({ label, value, sub, warn }) {
   return (
     <div className="bg-[#0d1218] border border-white/10 rounded-lg px-3 py-2">
-      <div className="text-[10px] text-white/45">{label}</div>
+      <MetricLabel>{label}</MetricLabel>
       <div className={`text-lg font-semibold leading-tight ${warn ? "text-red-400" : "text-white/90"}`}>{value}</div>
       {sub && <div className={`text-[10px] ${warn ? "text-red-400/80" : "text-white/40"}`}>{sub}</div>}
     </div>
@@ -77,11 +90,14 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
   const [pipeline, setPipeline] = useState([]);
   const [util, setUtil] = useState([]);
   const [hist, setHist] = useState({ cpi: [], spi: [], pct_complete: [] });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    buRollup().then(setRollup); evmByProject().then(setEvm); fieldByProject().then(setField); safetyByProject().then(setSafety);
-    wipByProject().then(setWip); backlogByBu().then(setBacklog); pipelineByBu().then(setPipeline); utilizationByBu().then(setUtil);
-    Promise.all([kpiHistory("cpi"), kpiHistory("spi"), kpiHistory("pct_complete")]).then(([cpi, spi, pct_complete]) => setHist({ cpi, spi, pct_complete }));
+    Promise.allSettled([
+      buRollup().then(setRollup), evmByProject().then(setEvm), fieldByProject().then(setField), safetyByProject().then(setSafety),
+      wipByProject().then(setWip), backlogByBu().then(setBacklog), pipelineByBu().then(setPipeline), utilizationByBu().then(setUtil),
+      Promise.all([kpiHistory("cpi"), kpiHistory("spi"), kpiHistory("pct_complete")]).then(([cpi, spi, pct_complete]) => setHist({ cpi, spi, pct_complete })),
+    ]).then(() => setLoading(false));
   }, []);
 
   const buName = (id) => bus.find((b) => b.id === id)?.name || "—";
@@ -124,8 +140,22 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
     return [...byDate.values()].map((o) => ({ date: (o.date || "").slice(0, 7), CPI: avg(o.c), SPI: avg(o.s) })).sort((a, b) => a.date.localeCompare(b.date));
   })();
 
+  if (loading) {
+    return (
+      <div className="h-full overflow-auto p-3 md:p-5">
+        <SkeletonStats />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-5">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} className="h-72" />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full overflow-auto p-5">
+    <div className="h-full overflow-auto p-3 md:p-5">
       {/* portfolio analytics — calculated, value-weighted */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2">
@@ -179,13 +209,13 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
               <div key={b.business_unit_id} className="bg-[#0d1218] border border-white/10 rounded-xl p-4">
                 <div className="text-sm text-white/80 mb-2">{buName(b.business_unit_id)}</div>
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div><div className="text-[10px] text-white/45">Backlog</div><div className="text-base font-semibold">{fmt$(b.backlog)}</div></div>
+                  <div><MetricLabel className="text-[10px] text-white/45 inline-block">Backlog</MetricLabel><div className="text-base font-semibold">{fmt$(b.backlog)}</div></div>
                   <div title={pl.open_pipeline_value == null ? "No open pursuits tracked for this unit" : undefined}>
-                    <div className="text-[10px] text-white/45">Open pipeline</div>
+                    <MetricLabel className="text-[10px] text-white/45 inline-block">Open pipeline</MetricLabel>
                     <div className={`text-base font-semibold ${pl.open_pipeline_value == null ? "text-white/30" : ""}`}>{pl.open_pipeline_value == null ? "no data" : fmt$(pl.open_pipeline_value)}</div>
                   </div>
                   <div title={pl.win_rate == null ? "No closed (won/lost) pursuits yet — win rate needs decision history" : undefined}>
-                    <div className="text-[10px] text-white/45">Win rate</div>
+                    <MetricLabel className="text-[10px] text-white/45 inline-block">Win rate</MetricLabel>
                     <div className={`text-base font-semibold ${pl.win_rate == null ? "text-white/30" : ""}`}>{pl.win_rate != null ? fmtPct(pl.win_rate) : "no data"}</div>
                   </div>
                 </div>

@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-13 — Session 5 (Fable 5): phone drawers finished + clarity/display prefs — LIVE
+
+**Context.** Resumed an interrupted, uncommitted session: mobile-responsive edits were already applied
+to 5 views, and 4 components were drafted but not wired (`HelpModal`, `Skeleton`, `glossary.js`,
+`prefs.js`). Finished the wiring, verified, deployed. **Live at https://clayos.pages.dev** (bundle
+`index-2ylaE86h.js`).
+
+- **Phone drawers (session-4 deferred item, now done):** 3D + Network side rails open via a ☰ button as
+  fixed drawers with backdrop; detail rails become bottom sheets on phones; Sigma + 3D canvases track
+  their *container* via ResizeObserver (not just window resize) and the 3D renderer clamps DPR ≤2.
+- **Per-tab help:** header "?" opens `HelpModal` for the active tab — the plain-language companion to
+  the poetic `OntologyIntro`. Dashboard help copy rewritten to only promise what actually ships.
+- **Skeletons:** Data table + Analytics render shimmer placeholders while loading (`Skeleton.jsx`,
+  keyframes ship once via `<ShimmerStyle/>` at the app root; static under prefers-reduced-motion).
+- **KPI glossary:** `defOf()` puts plain-language hover definitions (dotted underline + title) on metric
+  labels in Analytics (Stat, BU backlog/pipeline/win-rate) and the 3D KPI strip.
+- **Display prefs (header ⚙, persisted in `clayos.display.v1`):** colorblind-safe palette
+  (`TYPE_COLOR_CB` — Okabe-Ito anchored; hue = domain family matching TYPE_SHAPE, lightness = type;
+  `colorFor()` reads the active map, App remounts views on change since scenes bake colors);
+  higher-contrast (CSS lifts the dim `text-white/*` tiers + hairline borders via `.cl-contrast`);
+  literal labels (3D view: "Recent activity"/"updated"/"Value in slice" replace the vascular metaphor).
+- **Small fixes:** 24px horizontal overflow at 390px (header BU select now `max-md:max-w-[10rem]`,
+  label hidden on phones); inline SVG favicon (every prod visit 404'd before).
+
+**Verified:** headless via **snap chromium + puppeteer-core** (the puppeteer-cache Chrome binaries
+segfault on this box — use `/snap/bin/chromium` with a home-dir `userDataDir`; `networkidle2` never
+fires on this app, wait on `domcontentloaded` + settle). **17/17 checks passed**: help modal open/Esc,
+3 pref toggles apply (palette swaps legend colors, `.cl-contrast` on root), glossary titles present,
+Data "of 1,711", literal-mode strings, phone drawers open as fixed overlays, bottom-sheet detail,
+0 horizontal overflow, 0 runtime exceptions on all passes. Deployed via wrangler; prod HTTP 200 and
+serving the new bundle (first curl hit stale edge cache — cache-bust before concluding a deploy failed).
+
+**Next:** ROADMAP Phase 2.5 leftovers (CI auto-deploy, pg_cron, RLS enable-path, kg_entity_facts
+pagination) + Phase 3 polish. Graph keyboard cycling + network LOD still deferred.
+
+---
+
 ## 2026-06-29 — Session 4 (Opus 4.8): external-review response, Phase 1 LIVE
 
 **Context.** User pasted a thorough external review of the live app (3 concrete issues + 10

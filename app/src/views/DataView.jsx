@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { allEntities, listBusinessUnits, projectsLite, entityFacts, classificationCodes, entityDetail, neighbors } from "../lib/api.js";
 import { colorFor, shapeFor } from "../lib/palette.js";
+import { SkeletonTable } from "../components/Skeleton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clayco Data — every node in the ontology as one sortable, filterable table,
@@ -223,8 +224,8 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
 
         {/* table */}
         <div className="flex-1 overflow-auto">
-          {!ents ? <div className="p-6 text-white/50 text-sm">loading data…</div> : (
-            <table className="w-full text-sm border-collapse" aria-label="Clayco entities">
+          {!ents ? <SkeletonTable /> : (
+            <table className="w-full text-sm border-collapse max-md:min-w-[880px]" aria-label="Clayco entities">
               <thead className="sticky top-0 bg-[#0b0f14] z-10">
                 <tr className="text-left text-white/45 text-xs uppercase tracking-wide">
                   {COLS.map((c) => (
@@ -263,7 +264,8 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       </div>
 
       {selected && (
-        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 max-w-[80vw] shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]
+          max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:w-full max-md:max-w-none max-md:border-l-0 max-md:border-t max-md:rounded-t-xl max-md:max-h-[70vh] max-md:pb-16 max-md:shadow-2xl">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <div className="flex items-center justify-between mb-2">

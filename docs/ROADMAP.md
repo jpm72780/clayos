@@ -107,7 +107,20 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [x] #7 color/shape encoding (`TYPE_SHAPE` glyphs in legends + table), Data table ARIA (scope/aria-sort/
       keyboard rows/focus), `aria-label`s on controls, 3D drift off under prefers-reduced-motion
 - [x] #9b responsive: header wrap, detail rails `max-w-[80vw]`; verified no overflow at 834/390px
-- [~] Deferred: full phone nav-drawer for 3D/graph side rails; graph node-by-node keyboard cycling; network LOD
+- [~] Deferred: ~~full phone nav-drawer for 3D/graph side rails~~ (done in 2.8); graph node-by-node keyboard cycling; network LOD
+
+## Phase 2.8 — Phone drawers + clarity & display prefs (session 5, 2026-07-13) — SHIPPED LIVE
+- [x] Phone nav-drawers: 3D + Network side rails become ☰-opened fixed drawers; detail rails become
+      bottom sheets; Sigma/3D canvases resize via ResizeObserver (+ DPR clamp ≤2 on the 3D renderer)
+- [x] Global per-tab help: header "?" opens `HelpModal` (plain-language companion to the poetic intro)
+- [x] Skeleton loading states (`Skeleton.jsx`): Data table + Analytics stats/cards shimmer while loading
+- [x] KPI glossary (`glossary.js defOf`): hover definitions (CPI/SPI/EAC/TRIR/WIP/backlog…) on dotted-underlined
+      labels in Analytics + the 3D KPI strip
+- [x] Display preferences (`prefs.js` + header ⚙): colorblind-safe palette (`TYPE_COLOR_CB`, Okabe-Ito;
+      hue = family to match TYPE_SHAPE, lightness = type), higher-contrast mode (CSS tier lift),
+      literal labels (plain terms replace the vascular metaphor in the 3D view)
+- [x] Fixed 24px horizontal overflow at 390px (header BU select); inline SVG favicon (was a 404 every visit)
+- [x] Verified headless (snap chromium + puppeteer-core): 17/17 checks, 0 exceptions at 1440px + 390px
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass

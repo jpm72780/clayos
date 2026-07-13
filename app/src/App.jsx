@@ -5,6 +5,10 @@ import LifecycleView from "./views/LifecycleView.jsx";
 import DataView from "./views/DataView.jsx";
 import DashboardView from "./views/DashboardView.jsx";
 import AskDock from "./components/AskDock.jsx";
+import HelpModal from "./components/HelpModal.jsx";
+import { ShimmerStyle } from "./components/Skeleton.jsx";
+import { loadPrefs, savePrefs } from "./lib/prefs.js";
+import { setPalette } from "./lib/palette.js";
 
 const Lifecycle3DView = lazy(() => import("./views/Lifecycle3DView.jsx"));
 
@@ -33,6 +37,17 @@ export default function App() {
   const [dataErr, setDataErr] = useState(null); // set when the data API is unreachable
   const [askSeed, setAskSeed] = useState(null); // a question pushed into the chat ("ask about this")
   const [copied, setCopied] = useState(false);
+  const [help, setHelp] = useState(false);      // per-tab "what am I looking at?" modal
+  const [menu, setMenu] = useState(false);      // display-preferences popover
+  const [prefs, setPrefs] = useState(loadPrefs);
+  const [prefsRev, setPrefsRev] = useState(0);  // bump → remount views that bake colors/labels
+
+  const updatePrefs = (patch) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next); savePrefs(next); setPalette(next.palette);
+    // palette + terminology are baked into the views at build time; contrast is pure CSS
+    if ("palette" in patch || "literal" in patch) setPrefsRev((v) => v + 1);
+  };
 
   // Build a shareable deep-link to the current view on demand (explicit, not auto-persisted).
   const copyShareLink = () => {
@@ -51,8 +66,9 @@ export default function App() {
   }, [tab, ontoMode]);
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 border-b border-white/10 bg-[#0d1218]">
+    <div className={`h-full flex flex-col overflow-x-hidden${prefs.contrast ? " cl-contrast" : ""}`}>
+      <ShimmerStyle />
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 md:px-5 border-b border-white/10 bg-[#0d1218]">
         <span className="text-lg font-semibold tracking-tight text-amber-300/90">Clayco</span>
         <nav className="flex gap-1 ml-1">
           {TABS.map((t) => (
@@ -73,16 +89,24 @@ export default function App() {
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <label htmlFor="bu-select" className="text-xs text-white/40">Business unit</label>
+          <label htmlFor="bu-select" className="text-xs text-white/40 max-md:hidden">Business unit</label>
           <select id="bu-select" aria-label="Filter by business unit" value={bu || ""} onChange={(e) => setBu(e.target.value || null)}
-            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm">
+            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm min-w-0 max-md:max-w-[10rem]">
             <option value="">All Clayco</option>
             {bus.filter((b) => b.kind !== "enterprise").map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
+          <div className="relative">
+            <button onClick={() => setMenu((v) => !v)} aria-label="Display preferences" title="Display preferences"
+              className="w-7 h-7 grid place-items-center rounded-md text-white/50 hover:text-white hover:bg-white/5 text-sm">⚙</button>
+            {menu && <DisplayMenu prefs={prefs} update={updatePrefs} onClose={() => setMenu(false)} />}
+          </div>
+          <button onClick={() => setHelp(true)} aria-label="What am I looking at?" title="What am I looking at?"
+            className="w-7 h-7 grid place-items-center rounded-md border border-white/15 text-white/50 hover:text-white hover:bg-white/5 text-xs font-semibold">?</button>
         </div>
       </header>
+      {help && <HelpModal topic={tab} onClose={() => setHelp(false)} />}
       {dataErr && (
         <div className="bg-red-500/15 border-b border-red-500/30 text-red-200 text-sm px-5 py-2 flex items-center gap-3">
           <span>⚠ Can't reach the data service — <span className="text-red-200/70">{dataErr}</span>. The backend is fine; your network/IP may be blocked from the API (try another network or a VPN).</span>
@@ -99,7 +123,7 @@ export default function App() {
           <span className="ml-auto text-white/35">Scope: <span className="text-white/55">{scopeLabel(focus, hl)}</span></span>
         </div>
       )}
-      <main className="flex-1 min-h-0">
+      <main className="flex-1 min-h-0" key={prefsRev}>
         {tab === "graph" && ontoMode === "3d" && (
           <Suspense fallback={<div className="h-full grid place-items-center text-white/50 text-sm">loading 3D…</div>}>
             <Lifecycle3DView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} />
@@ -125,5 +149,34 @@ function FilterChip({ children, onClear }) {
       {children}
       <button onClick={onClear} aria-label="Clear filter" className="opacity-70 hover:opacity-100">✕</button>
     </span>
+  );
+}
+
+function DisplayMenu({ prefs, update, onClose }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute right-0 top-full mt-2 z-50 w-64 bg-[#0d1218] border border-white/10 rounded-xl p-3 shadow-2xl text-sm">
+        <div className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Display</div>
+        <Toggle label="Colorblind-safe palette" hint="hue = domain family (matches the legend shapes), lightness = type"
+          checked={prefs.palette === "colorblind"} onChange={(v) => update({ palette: v ? "colorblind" : "default" })} />
+        <Toggle label="Higher contrast" hint="lifts dim text and hairline borders"
+          checked={prefs.contrast} onChange={(v) => update({ contrast: v })} />
+        <Toggle label="Literal labels" hint="plain construction terms instead of the flow metaphor"
+          checked={prefs.literal} onChange={(v) => update({ literal: v })} />
+      </div>
+    </>
+  );
+}
+
+function Toggle({ label, hint, checked, onChange }) {
+  return (
+    <label className="flex items-start gap-2.5 py-1.5 cursor-pointer select-none">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 accent-amber-400" />
+      <span>
+        <span className="text-white/85">{label}</span>
+        {hint && <span className="block text-[11px] text-white/40 leading-snug">{hint}</span>}
+      </span>
+    </label>
   );
 }

@@ -3,8 +3,34 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-06-29 (session 4 — external-review response, ALL 4 PHASES LIVE)
-**Updated by:** Claude (Opus 4.8) session — all 13 review items (+2 latent bugs) shipped live across 4 phases
+**Last updated:** 2026-07-13 (session 5 — phone drawers + clarity & display prefs, LIVE)
+**Updated by:** Claude (Fable 5) session — finished + shipped an interrupted session's uncommitted work
+
+---
+
+## ⚡ Session 5 — phone drawers + clarity & display prefs (read this first)
+Resumed an **interrupted, uncommitted session** (responsive edits applied; `HelpModal` / `Skeleton` /
+`glossary.js` / `prefs.js` drafted but unwired). Finished the wiring and **shipped it live** at
+https://clayos.pages.dev (bundle `index-2ylaE86h.js`, prod verified):
+
+- **Phone drawers** (the session-4 deferred item): 3D + Network side rails → ☰ fixed drawers with
+  backdrop; detail rails → bottom sheets; Sigma/3D canvases resize with their container
+  (ResizeObserver) + 3D DPR clamped ≤2. Fixed a 24px overflow at 390px (header BU select).
+- **Header "?"** → per-tab `HelpModal` (plain-language "what am I looking at?" for graph/data/dashboard).
+- **Skeleton loading states** in Data + Analytics (`Skeleton.jsx`, `<ShimmerStyle/>` at app root).
+- **KPI glossary hovers** (`glossary.js defOf`): CPI/SPI/EAC/TRIR/WIP/backlog… definitions on
+  dotted-underlined labels in Analytics + the 3D KPI strip.
+- **Header ⚙ display prefs** (persisted `clayos.display.v1`, `prefs.js`): **colorblind-safe palette**
+  (`TYPE_COLOR_CB` Okabe-Ito; hue = family to match TYPE_SHAPE glyphs; `colorFor()` reads the active
+  map and App remounts views on change), **higher contrast** (`.cl-contrast` CSS tier lift),
+  **literal labels** (plain terms replace the vascular metaphor in the 3D view).
+- Also: inline SVG favicon (prod 404'd it on every visit).
+
+**Verified headless 17/17, 0 exceptions** at 1440px + 390px. Gotchas for next session: the
+puppeteer-cache Chrome binaries **segfault on this box** — drive `/snap/bin/chromium` via
+puppeteer-core with a home-dir `userDataDir` (snap can't write /tmp); `networkidle2` never fires on
+this app — wait `domcontentloaded` + settle. Cloudflare edge caches `index.html` briefly — cache-bust
+before concluding a deploy didn't take.
 
 ---
 
@@ -217,9 +243,14 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
   code/keyword — no edge-function change.
 
 ## Next actions
-- Agent could drive the **highlight** too (answer mentions a CSI division / vendor → set that filter), and
-  ideally return a **structured focus hint** from the edge function instead of text-matching.
-- Then: original Phase-2 backlog below (text-to-SQL `kg_query`, RLS scoping, CI/pg_cron, deeper seed).
+*(The structured focus hint + kg_query items that used to live here shipped in session 3 — Phase C.)*
+- **CI auto-deploy** — needs a `workflow`-scoped gh token; workflow parked at `docs/deploy/`.
+- **pg_cron** on the cloud project + reschedule `refresh_all_kpis()` (migration 009 patterns).
+- **RLS enable-path** — scaffolding is migration 012; verify the anon read path before enabling.
+- **kg_entity_facts pagination follow-up** — `fetchAllRpc` handles it client-side now; consider raising
+  the function cap server-side instead.
+- **Polish backlog** — semantic search in the UI (#11), code-splitting the two ~1.4 MB chunks,
+  graph node-by-node keyboard cycling, network-graph LOD (all deferred, none blocking).
 
 ## Backlog (original Phase 2 — widen + deepen)
 
