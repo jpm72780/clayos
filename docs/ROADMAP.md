@@ -127,9 +127,23 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [x] Agent eval set (golden Q→A) — `evals/`
 - [ ] Executive portfolio dashboard
 
+## Phase 4a — Snowflake semantic layer (DB_CONTROL_TOWER) — STARTED 2026-07-13
+Direction change: Supabase is NOT Clayco-approved for real data, so instead of ingesting into the
+clayos schema, the ClayOS pattern (projection + KPIs + guarded agent query) is **ported into
+Snowflake**. Plan: `/home/clawd/.claude/plans/db-control-tower-data-map-robust-comet.md`.
+- [x] Gap assessment + integration plan (approved)
+- [x] Artifact set authored: `integrations/snowflake/` (00 setup · 01 source verification ·
+      02 vendor master · 03 entities/edges dynamic tables · 04 KPI views w/ 3 EV bases ·
+      05 guarded query harness) — **all warehouse columns [INFERRED], 01 must run first**
+- [ ] Phase 0 gate: governance approvals, service user, run 01, record verified facts, pick pilot slate
+- [ ] Phase 1: build semantic schema over 10–20 pilot projects; KPI reconciliation vs Tableau
+- [ ] Phase 2: agent on Snowflake (harness + Cortex Search; host per governance answer)
+- [ ] Phase 3: UI at scale (SSO gateway, entitlement-based RLS, 3D LOD for 200 projects)
+
 ## Phase 4+ — Roadmap (post-POC)
 - [ ] App/workflow builder UI + per-app RLS (app_id claim) + MCP-style tool exposure
-- [ ] Real ingestion connectors via n8n (Procore / Autodesk Construction Cloud / ERP)
+- [ ] Real ingestion connectors via n8n (Procore / Autodesk Construction Cloud / ERP) —
+      superseded for Clayco data by Phase 4a (Snowflake-native); still relevant for non-warehouse sources
 - [ ] Optional: migrate graph to Apache AGE / Neo4j if traversal perf demands (ADR-001)
 - [ ] Optional: RDF / ifcOWL / BOT alignment layer for semantic interoperability
 

@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-07-13 — Session 6 (Fable 5): Snowflake gap assessment + semantic-layer artifact set
+
+**Context.** John shared a trusted data map of Clayco's real warehouse (`DB_CONTROL_TOWER`:
+126 dynamic tables, JDE/PMWeb/ACC/Textura/TradeTapp/SmartPM, no FKs, ~200 active projects) and asked:
+gaps vs ClayOS, opportunities, and what to do before connecting. Full plan (approved):
+`/home/clawd/.claude/plans/db-control-tower-data-map-robust-comet.md`.
+
+**Key decisions (John):** Supabase is NOT Clayco-approved → **no real data in Supabase, ever**;
+the ClayOS pattern gets **ported into Snowflake** instead (the POC stays synthetic). Compute
+**all three EV proxies** side-by-side (cost-forecast, SmartPM schedule, billings) since the
+warehouse has no true EV/PV. Pilot 10–20 projects, design for 200.
+
+**Shipped:** `integrations/snowflake/` artifact set, authored from the assessment + faithful ports
+of migrations 006/007/011 — README (verification-first workflow), 00 setup (roles/warehouse/
+resource monitor/pilot config), 01 source verification (the 5 mapping questions + broken-object
+and freshness assertions + Cortex probe), 02 vendor master (JDE spine + fuzzy-match thresholds
+0.90/0.70 + review queue), 03 ENTITIES/EDGES dynamic tables (natural-key ids; DailyLogs deliberately
+not projected), 04 KPI views (EVM×3 bases + divergence view + TRIR/field/backlog/pipeline/rollup +
+reconciliation export), 05 guarded query harness (3-layer port of kg_query_safe) + Cortex Search stub.
+
+**Honesty note:** every warehouse column is tagged `[INFERRED]` — authored without live warehouse
+access. Nothing runs before 01 verifies columns and the README "Verified facts" table is filled.
+
+**Next:** John's Phase-0 items — governance approvals (schema, Cortex, hosting), service user +
+key pair, run 01, pick the pilot slate. Then I can finalize 02–05 against verified columns.
+
+---
+
 ## 2026-07-13 — Session 5 (Fable 5): phone drawers finished + clarity/display prefs — LIVE
 
 **Context.** Resumed an interrupted, uncommitted session: mobile-responsive edits were already applied

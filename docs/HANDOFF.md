@@ -3,8 +3,24 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-13 (session 5 — phone drawers + clarity & display prefs, LIVE)
-**Updated by:** Claude (Fable 5) session — finished + shipped an interrupted session's uncommitted work
+**Last updated:** 2026-07-13 (session 6 — Snowflake semantic-layer workstream opened)
+**Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 6 — real-data direction: port the pattern into Snowflake (read this first)
+John shared a data map of Clayco's real warehouse (`DB_CONTROL_TOWER`) and set the governing
+constraint: **Supabase is not Clayco-approved — no real data lands here, ever.** So ClayOS is now
+two tracks:
+1. **This repo / the live app** — stays the synthetic demo + reference implementation. Unchanged.
+2. **`integrations/snowflake/`** — the ClayOS pattern (ontology projection, KPI layer, guarded
+   agent query) ported to Snowflake as a semantic layer over the real warehouse. Authored, NOT yet
+   run: every warehouse column is `[INFERRED]`; `01_source_verification.sql` must run first and its
+   answers get recorded in that folder's README. EVM computes **three EV bases side-by-side**
+   (no true EV/PV exists in the warehouse). Plan of record:
+   `/home/clawd/.claude/plans/db-control-tower-data-map-robust-comet.md`.
+**Blocked on John (Phase 0):** Clayco IT approvals (schema owner, Cortex enabled?, approved app
+hosting), service-user key pair, pilot slate (10–20 projects / 2 BUs) → insert into `PILOT_PROJECTS`.
 
 ---
 
