@@ -36,6 +36,12 @@ value-weighted portfolio stats still compute over the full set.
 → Charlotte Distribution Hub Ph2, TRIR 17.33). **6/6 pass against live.** Verified live headless:
 0 exceptions, orbit renders 200 globes + 2,178 movers, Data "of 6,328", Analytics caps active.
 
+**Session 7 cont. (same day):** user feedback pass — **periphery-fade slider** (0→0.95, default 0.8;
+live: recolors nodes + refades membranes/labels without a scene rebuild — raw heat now travels with
+the objects instead of baked fade), **flow-particle size rebased** (old max 3 = new min, range 3–10),
+**speed defaults to minimum** (0.001), **stage labels ~2× larger** (30px, brighter) so the axis reads
+zoomed-out. Verified live headless (sliders present, fade-at-0 brightens the whole portfolio, 0 errors).
+
 **Next:** the orbital layout is the scale testbed for Phase 4a (Snowflake, real ~200 projects). UX
 ideas John may want next: cluster expand-on-zoom LOD, orbit legend/axis rings, per-BU orbit filters.
 

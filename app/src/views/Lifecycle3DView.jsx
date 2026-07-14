@@ -110,17 +110,18 @@ function buildClusters(model, heatByPid) {
     const thetaDeg = -SECTOR_ARC / 2 + buIds.indexOf(p.bu) * arc + ((k * PHI * 180 / Math.PI) % arc);
     const th = (thetaDeg * Math.PI) / 180;
     const c = { x, y: r * Math.cos(th), z: r * Math.sin(th) };
-    const fade = 0.22 + 0.78 * heat; // the periphery fades — distance from the core = dormancy
     const color = buColor(p.bu);
     const hubVal = 12 + Math.sqrt(Math.max(p.count, 4)) * 3.4;
-    clusters.push({ kind: "project", cid: p.pid, center: c, radius: R, color, label: p.code, count: p.count, heat, fade });
+    // raw heat travels with nodes/clusters/labels — the periphery-fade slider turns
+    // it into an opacity/color falloff live (nothing is baked at build time)
+    clusters.push({ kind: "project", cid: p.pid, center: c, radius: R, color, label: p.code, count: p.count, heat });
     pos.set(p.node.id, { ...c });
-    meta.set(p.node.id, { cid: p.pid, pid: p.pid, domain: "project", type: "Project", label: p.name, fade, hubVal });
+    meta.set(p.node.id, { cid: p.pid, pid: p.pid, domain: "project", type: "Project", label: p.name, heat, hubVal });
     const n = p.kids.length || 1;
     p.kids.forEach((kid, kk) => {
       const sp = spherePoint(kk, n);
       pos.set(kid.id, { x: c.x + sp.x * R, y: c.y + sp.y * R, z: c.z + sp.z * R });
-      meta.set(kid.id, { cid: p.pid, pid: p.pid, domain: kid.domain, type: kid.type, label: kid.label, fade });
+      meta.set(kid.id, { cid: p.pid, pid: p.pid, domain: kid.domain, type: kid.type, label: kid.label, heat });
     });
   });
 
@@ -129,13 +130,13 @@ function buildClusters(model, heatByPid) {
     .sort((a, b) => (b.heat + b.count / 400) - (a.heat + a.count / 400)).slice(0, 48);
   for (const c of labeled) {
     labels.push({ text: c.label, x: c.center.x, y: c.center.y + c.radius + 24, z: c.center.z,
-                  color: "#fde68a", size: 12, opacity: 0.35 + 0.65 * c.fade });
+                  color: "#fde68a", size: 12, heat: c.heat });
   }
 
-  // stage labels ride the core axis itself
+  // stage labels ride the core axis itself — large, so they still read zoomed-out
   for (const [stage, idx] of Object.entries(STAGE_INDEX)) {
     if (!projects.some((p) => p.stage === stage)) continue;
-    labels.push({ text: STAGE_LABEL[stage] || stage, x: (idx - 2) * STAGE_W, y: 36, z: 0, color: "#9aa6b2", size: 16, faint: true });
+    labels.push({ text: STAGE_LABEL[stage] || stage, x: (idx - 2) * STAGE_W, y: 48, z: 0, color: "#b7c3cf", size: 30, faint: true });
   }
 
   // backbone corridor stays below the whole orbit
@@ -144,13 +145,13 @@ function buildClusters(model, heatByPid) {
   present.forEach((g, gi) => {
     const R = RK * Math.sqrt(Math.max(g.members.length, 6));
     const c = { x: (gi - (present.length - 1) / 2) * 420, y: bbY, z: 60 };
-    clusters.push({ kind: "backbone", cid: "bb:" + g.key, center: c, radius: R, color: g.tint, label: g.label, count: g.members.length, fade: 1 });
+    clusters.push({ kind: "backbone", cid: "bb:" + g.key, center: c, radius: R, color: g.tint, label: g.label, count: g.members.length, heat: 1 });
     labels.push({ text: g.label, x: c.x, y: c.y - R - 22, z: c.z, color: g.tint, size: 12, faint: true });
     const n = g.members.length || 1;
     g.members.forEach((node, k) => {
       const sp = spherePoint(k, n);
       pos.set(node.id, { x: c.x + sp.x * R, y: c.y + sp.y * R, z: c.z + sp.z * R });
-      meta.set(node.id, { cid: "bb:" + g.key, pid: null, domain: node.domain, type: node.type, label: node.label, fade: 1 });
+      meta.set(node.id, { cid: "bb:" + g.key, pid: null, domain: node.domain, type: node.type, label: node.label, heat: 1 });
     });
   });
 
@@ -191,7 +192,9 @@ function computeKpis(focus, evm, field, safety) {
 
 export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, setHl }) {
   const mountRef = useRef(null), fgRef = useRef(null), hotRef = useRef(null), controlsRef = useRef(null);
-  const windowRef = useRef(60 * 24), flowSpeedRef = useRef(0.0018), flowSizeRef = useRef(2.0);
+  const windowRef = useRef(60 * 24), flowSpeedRef = useRef(0.001), flowSizeRef = useRef(3.0);
+  const fadeAmtRef = useRef(0.8);                    // periphery-fade strength (slider)
+  const membranesRef = useRef([]), labelSpritesRef = useRef([]); // fade-reactive scene objects
   const [data, setData] = useState(null);
   const [codes, setCodes] = useState([]);
   const [classByEntity, setClassByEntity] = useState(new Map());
@@ -207,10 +210,12 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   // Toggled manually or auto-enabled once if the opening seconds run below ~25 fps.
   const [lite, setLite] = useState(false);
   const liteRef = useRef(false); useEffect(() => { liteRef.current = lite; }, [lite]);
-  // flow controls (recent-activity particles)
+  // flow controls (recent-activity particles) — speed defaults to minimum, size range
+  // starts where the old maximum was (user wants pulses big)
   const [windowIdx, setWindowIdx] = useState(2); // 60d
-  const [flowSpeed, setFlowSpeed] = useState(0.0018);
-  const [flowSize, setFlowSize] = useState(2.0);
+  const [flowSpeed, setFlowSpeed] = useState(0.001);
+  const [flowSize, setFlowSize] = useState(3.0);
+  const [fadeAmt, setFadeAmt] = useState(0.8);  // 0 = no periphery fade · ~1 = periphery vanishes
 
   useEffect(() => {
     let killed = false; setLoading(true);
@@ -298,12 +303,15 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     return { mode: focus ? "project" : "enterprise", ...computeKpis(focus, evm, field, safety) };
   }, [hl, hot, focus, facts, model, evm, field, safety]);
 
-  // periphery fade: blend a node's color toward the background by its project's fade
+  // periphery fade: blend a node's color toward the background by its project's heat,
+  // scaled by the live fade slider (fadeAmt 0 → no fade, ~1 → periphery vanishes)
+  const effFade = (heat) => (heat == null ? 1 : 1 - fadeAmtRef.current * (1 - heat));
   const faded = (hex, f) => "#" + new THREE.Color("#0b1017").lerp(new THREE.Color(hex), f).getHexString();
   const nodeColor = (n) => {
     const h = hotRef.current;
     if (h) return h.set.has(n.id) ? colorFor(n.type) : DIM; // highlight overrides fade
-    return n.fade != null && n.fade < 1 ? faded(colorFor(n.type), n.fade) : colorFor(n.type);
+    const f = effFade(n.heat);
+    return f < 1 ? faded(colorFor(n.type), f) : colorFor(n.type);
   };
   const nodeVal = (n) => { const base = n.type === "Project" ? (n.hubVal || 30) : 3; const h = hotRef.current; return h && h.set.has(n.id) ? base * 2.2 : base; };
   // pulses move faster the more recently their data point moved (within the window)
@@ -369,22 +377,27 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     }
 
     // faint membrane around each vascular system — periphery membranes fade too
+    // (fade-reactive: registered so the slider updates them live)
+    membranesRef.current = []; labelSpritesRef.current = [];
     for (const c of graph.clusters) {
       const col = new THREE.Color(c.color);
-      const f = c.fade ?? 1;
+      const f = effFade(c.heat ?? 1);
       const fill = new THREE.Mesh(new THREE.SphereGeometry(c.radius * 1.05, 18, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.045 * (0.35 + 0.65 * f) }));
       fill.position.set(c.center.x, c.center.y, c.center.z);
       const wire = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(c.radius * 1.05, 12, 9)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.09 * f }));
       wire.position.copy(fill.position);
       fill.raycast = () => {}; wire.raycast = () => {}; // decorative — don't block node clicks
       g.scene().add(fill); g.scene().add(wire);
+      membranesRef.current.push({ fill, wire, heat: c.heat ?? 1 });
     }
     for (const lb of graph.labels) {
       const s = new SpriteText(lb.text); s.color = lb.color; s.textHeight = lb.size;
       s.backgroundColor = "rgba(4,7,11,0.6)"; s.padding = lb.size * 0.35; s.borderRadius = 2; // dark chip keeps text crisp under bloom
-      s.material.opacity = lb.opacity ?? (lb.faint ? 0.7 : 1); s.material.transparent = true; s.position.set(lb.x, lb.y, lb.z);
+      s.material.opacity = lb.heat != null ? 0.35 + 0.65 * effFade(lb.heat) : (lb.faint ? 0.7 : 1);
+      s.material.transparent = true; s.position.set(lb.x, lb.y, lb.z);
       s.raycast = () => {};
       g.scene().add(s);
+      if (lb.heat != null) labelSpritesRef.current.push({ s, heat: lb.heat });
     }
     g.scene().add(new THREE.AmbientLight(0xffffff, 0.95));
 
@@ -481,6 +494,18 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   useEffect(() => { windowRef.current = WINDOWS[windowIdx].h; const g = fgRef.current; if (g) g.linkDirectionalParticles((l) => (!liteRef.current && l.rh <= windowRef.current ? 1 : 0)).linkDirectionalParticleSpeed(particleSpeed); }, [windowIdx, graph]);
   useEffect(() => { flowSpeedRef.current = flowSpeed; const g = fgRef.current; if (g) g.linkDirectionalParticleSpeed(particleSpeed); }, [flowSpeed, graph]);
   useEffect(() => { flowSizeRef.current = flowSize; const g = fgRef.current; if (g) g.linkDirectionalParticleWidth(flowSize); }, [flowSize, graph]);
+  // periphery-fade slider → recolor nodes + refade membranes/labels live (no rebuild)
+  useEffect(() => {
+    fadeAmtRef.current = fadeAmt;
+    const g = fgRef.current; if (!g) return;
+    g.nodeColor((n) => nodeColor(n));
+    for (const m of membranesRef.current) {
+      const f = effFade(m.heat);
+      m.fill.material.opacity = 0.045 * (0.35 + 0.65 * f);
+      m.wire.material.opacity = 0.09 * f;
+    }
+    for (const l of labelSpritesRef.current) l.s.material.opacity = 0.35 + 0.65 * effFade(l.heat);
+  }, [fadeAmt]); // eslint-disable-line
   const activeCount = useMemo(() => (graph ? graph.nodes.filter((n) => n.type !== "Project" && n.rh <= WINDOWS[windowIdx].h).length : 0), [graph, windowIdx]);
   // recompute per-project recent-activity intensity (drives the hub pulse) when window/data changes
   useEffect(() => {
@@ -589,7 +614,9 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           <label className="block text-white/45 text-[10px] mt-2">Speed</label>
           <input type="range" min="0.001" max="0.012" step="0.0005" value={flowSpeed} onChange={(e) => setFlowSpeed(+e.target.value)} className="cl-range" />
           <label className="block text-white/45 text-[10px] mt-2">Size</label>
-          <input type="range" min="0.5" max="3" step="0.1" value={flowSize} onChange={(e) => setFlowSize(+e.target.value)} className="cl-range" />
+          <input type="range" min="3" max="10" step="0.25" value={flowSize} onChange={(e) => setFlowSize(+e.target.value)} className="cl-range" />
+          <label className="block text-white/45 text-[10px] mt-2">Periphery fade <span className="text-white/30">· dormant projects dim</span></label>
+          <input type="range" min="0" max="0.95" step="0.05" value={fadeAmt} onChange={(e) => setFadeAmt(+e.target.value)} className="cl-range" />
           <style>{`.cl-range{width:100%;accent-color:#38bdf8;height:3px}`}</style>
         </div>
 
