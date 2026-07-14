@@ -6,7 +6,7 @@
 # (the seed self-cleans via TRUNCATE, schema/functions/grants are preserved).
 # Run it yourself when ready:   ./scripts/reseed-cloud.sh
 #
-# Verified end-to-end on local Postgres already (6 BUs, 8 projects, ~1,711 entities).
+# Verified end-to-end on local Postgres already (6 BUs, 200 projects, ~4,765 entities).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1091
@@ -22,12 +22,12 @@ docker exec -i clayos_db psql "$DSN" -q -v ON_ERROR_STOP=1 < /tmp/clayos_seed.sq
 docker exec -i clayos_db psql "$DSN" -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 
 echo "3/4  Draining entity embeddings (powers semantic search / the agent)…"
-for _ in $(seq 1 80); do
+for _ in $(seq 1 160); do
   left=$(docker exec -i clayos_db psql "$DSN" -At -c "SELECT count(*) FROM clayos.graph_embed_jobs;")
   echo "     embed jobs remaining: $left"
   [ "$left" = "0" ] && break
   curl -s -X POST "$U/functions/v1/embed-entities" \
-       -H "Authorization: Bearer $SR" -H "Content-Type: application/json" -d '{}' >/dev/null || true
+       -H "Authorization: Bearer $SR" -H "Content-Type: application/json" -d '{"batch_size":200}' >/dev/null || true
   sleep 2
 done
 

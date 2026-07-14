@@ -30,7 +30,7 @@ export default function GraphView({ businessUnit }) {
   useEffect(() => {
     let killed = false;
     setLoading(true);
-    subgraph({ businessUnit, domains, limit: 1500 }).then((data) => {
+    subgraph({ businessUnit, domains, limit: 6000 }).then((data) => {
       if (killed || !containerRef.current) return;
       const g = new Graph();
       for (const n of data.nodes) {

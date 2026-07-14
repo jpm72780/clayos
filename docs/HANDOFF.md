@@ -3,8 +3,20 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-13 (session 6 — Snowflake semantic-layer workstream opened)
+**Last updated:** 2026-07-14 (session 7 — 200-project portfolio + orbital 3D, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 7 — 200 projects + the orbital ontology (read this first)
+The live demo now runs at **portfolio scale**: **200 projects / 6,328 entities** (8 deep + 192 light;
+seed byte-preserves the deep projects and their goldens — new data comes from a separate RNG appended
+at the end of `seed/generate.py`). The 3D view is now an **orbit around a glowing time axis**:
+left→right = lifecycle, **radial distance = activity heat** (hot projects hug the core, dormant ones
+drift out **and fade**), angle = business-unit sector, globe size = data volume, backbone below.
+Analytics charts cap to top-14-by-signal (portfolio stats stay full-set). Evals updated for the new
+landscape — **6/6 pass live**. `kg_subgraph` fetches at limit 6000 now; the graph is ~6.3k entities,
+so watch the ~5k-node 3D comfort zone — cluster expand-on-zoom LOD is the known next step if it grows.
 
 ---
 

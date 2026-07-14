@@ -527,6 +527,219 @@ for p in PROJ:
                                  business_unit_id=bu[p["bu"]], project_id=p["id"], metric=metric, value=value))
 insert("kpi_history", ["id", "snapshot_date", "business_unit_id", "project_id", "metric", "value"], hist_rows)
 
+# ─── Wide portfolio: ~192 light projects (orbit / 200-project stress test) ────
+# Uses a SEPARATE RNG (and runs after everything above) so the original 8 deep
+# projects — and the eval goldens derived from them — stay byte-identical.
+# Light = globe + KPIs + a small cluster (~15-20 entities): condensed cost
+# accounts w/ latest EVM period, one pay app, 2 subcontracts, a few RFIs, and
+# stage-appropriate field activity. Each project gets a HEAT profile (hot/warm/
+# cold) that drives how recent its activity dates are — this is what the 3D
+# orbit reads to pull active projects toward the core.
+LR = random.Random(4242)
+USED_NAMES = {p["name"] for p in PROJ}
+
+CITIES = [("Columbus","OH"),("Phoenix","AZ"),("Nashville","TN"),("Austin","TX"),("Atlanta","GA"),
+          ("Dallas","TX"),("Denver","CO"),("Kansas City","MO"),("St. Louis","MO"),("Memphis","TN"),
+          ("Louisville","KY"),("Indianapolis","IN"),("Des Moines","IA"),("Omaha","NE"),("Tulsa","OK"),
+          ("Reno","NV"),("Boise","ID"),("Salt Lake City","UT"),("Tucson","AZ"),("Albuquerque","NM"),
+          ("San Antonio","TX"),("Fort Worth","TX"),("Charlotte","NC"),("Raleigh","NC"),("Richmond","VA"),
+          ("Columbia","SC"),("Savannah","GA"),("Jacksonville","FL"),("Tampa","FL"),("Orlando","FL"),
+          ("Grand Rapids","MI"),("Detroit","MI"),("Cleveland","OH"),("Cincinnati","OH"),("Pittsburgh","PA"),
+          ("Minneapolis","MN"),("Milwaukee","WI"),("Madison","WI"),("Lincoln","NE"),("Green Bay","WI")]
+SECTOR_TEMPLATES = {
+    "data_center":   ["{c} Hyperscale Data Center", "{c} Cloud Campus", "{c} Edge Data Center"],
+    "industrial":    ["{c} Logistics Center", "The Cubes at {c}", "{c} Distribution Hub", "{c} Manufacturing Plant"],
+    "life_sciences": ["{c} Bioprocessing Facility", "{c} Lab & cGMP Suite", "{c} Research Tower"],
+    "commercial":    ["{c} Corporate Campus", "{c} Gateway Tower", "{c} Innovation Center"],
+    "multifamily":   ["Chapter at {c}", "{c} Residences", "{c} Skyline Flats"],
+    "institutional": ["{c} Science Quad", "{c} Medical Pavilion", "{c} Student Success Center"],
+}
+LIGHT_MIX = [  # (bu, sector, code prefix, count, value range $M) — totals 192
+    ("clayco-compute", "data_center",   "DC",  38, (60, 480)),
+    ("clayco-core",    "industrial",    "IN",  44, (15, 220)),
+    ("clayco-core",    "life_sciences", "LS",  22, (40, 260)),
+    ("clayco-core",    "commercial",    "CW",  20, (25, 180)),
+    ("crg",            "industrial",    "CRG", 20, (40, 240)),
+    ("crg",            "multifamily",   "CRG", 18, (30, 160)),
+    ("ljc",            "commercial",    "LJC", 16, (10, 120)),
+    ("ljc",            "institutional", "LJC", 14, (15, 90)),
+]
+LIGHT_OWNERS = [("vertex-cloud", "Vertex Cloud Infrastructure", "owner"), ("prologix", "ProLogix Industrial Trust", "owner"),
+                ("heartland-health", "Heartland Health Systems", "owner"), ("novacore", "NovaCore Pharma", "owner"),
+                ("summit-uni", "Summit State University", "client"), ("blueline", "BlueLine Capital Partners", "owner"),
+                ("titanium-reit", "Titanium Industrial REIT", "owner"), ("archline", "Archline Development", "client"),
+                ("gridpoint", "GridPoint Energy", "owner"), ("metrolife", "MetroLife Communities", "owner"),
+                ("caladan", "Caladan Foods", "owner"), ("keystone-med", "Keystone Medical Group", "owner"),
+                ("northgate", "Northgate Ventures", "client"), ("silverbirch", "SilverBirch Living", "owner")]
+lo_rows = []
+for slug, name, typ in LIGHT_OWNERS:
+    i = uid("org", slug); org[slug] = i
+    lo_rows.append(dict(id=i, name=name, org_type=typ, trade=None, city="Chicago", state="IL"))
+insert("organizations", ["id", "name", "org_type", "trade", "city", "state"], lo_rows)
+
+LIGHT_WBS = [("01", "General Conditions", "01 00 00", "overhead", 0.10),
+             ("03", "Structure & Concrete", "03 00 00", "subcontract", 0.30),
+             ("07", "Enclosure", "07 00 00", "subcontract", 0.20),
+             ("23", "MEP Systems", "23 00 00", "subcontract", 0.40)]
+STAGE_PROFILE = {  # stage -> (planned range, start range (days), duration range (days))
+    "design":       ((0.05, 0.18), (-220, -30),  (500, 1000)),
+    "precon":       ((0.04, 0.22), (-150, -20),  (420, 900)),
+    "construction": ((0.20, 0.90), (-540, -120), (240, 700)),
+    "closeout":     ((0.94, 1.00), (-780, -540), (480, 620)),
+}
+SUB_POOL = sorted(set(SUB_FOR.values()))
+owner_pool = [s for s, _, t in LIGHT_OWNERS] + ["hyperscale", "midwest-reit", "biogen", "riverside-dev"]
+
+lp_rows, lca_rows, lcp_rows, lpa_rows, lpl_rows, lct_rows = [], [], [], [], [], []
+lrfi_rows, llog_rows, lsafe_rows, lhist_rows = [], [], [], []
+counters = {}
+LIGHT = []
+for bu_slug, sector, prefix, count, (vlo, vhi) in LIGHT_MIX:
+    for _ in range(count):
+        counters[prefix] = counters.get(prefix, 400) + 1
+        key = f"{prefix}-{counters[prefix]}"
+        city, state = LR.choice(CITIES)
+        name = LR.choice(SECTOR_TEMPLATES[sector]).format(c=city)
+        # 40 cities × few templates WILL collide — keep names unique (agent lookups are by name)
+        if name in USED_NAMES:
+            n2 = 2
+            while f"{name} Ph{n2}" in USED_NAMES: n2 += 1
+            name = f"{name} Ph{n2}"
+        USED_NAMES.add(name)
+        # LJC (architecture) skews to design; others weighted to construction
+        stage = (LR.choices(["design", "precon", "construction", "closeout"], [55, 20, 15, 10])[0]
+                 if bu_slug == "ljc" else
+                 LR.choices(["design", "precon", "construction", "closeout"], [16, 16, 48, 20])[0])
+        (plo, phi), (slo, shi), (dlo, dhi) = STAGE_PROFILE[stage]
+        planned = round(LR.uniform(plo, phi), 3)
+        earned = round(max(0.0, min(1.0, planned * LR.uniform(0.88, 1.10))), 3)
+        cpi = round(LR.uniform(0.88, 1.08), 3)
+        value = round(LR.uniform(vlo, vhi)) * 1_000_000
+        start = LR.randint(slo, shi); end = start + LR.randint(dlo, dhi)
+        # heat: hot projects have recent activity (pulls them toward the orbit core)
+        heat = LR.choices(["hot", "warm", "cold"],
+                          [55, 30, 15] if stage == "construction" else
+                          [25, 40, 35] if stage in ("precon", "design") else [10, 30, 60])[0]
+        recency = {"hot": (0, 21), "warm": (21, 90), "cold": (90, 330)}[heat]
+        p = dict(key=key, bu=bu_slug, name=name, sector=sector, stage=stage, value=value,
+                 planned=planned, earned=earned, cpi=cpi, start=start, end=end,
+                 heat=heat, recency=recency, id=uid("project", key))
+        LIGHT.append(p)
+        lp_rows.append(dict(id=p["id"], business_unit_id=bu[bu_slug], code=key, name=name,
+                            sector=sector, lifecycle_stage=stage,
+                            status="active", contract_value=value,
+                            owner_org_id=org[LR.choice(owner_pool)], gc_org_id=org["clayco-gc"],
+                            architect_org_id=org["ljc-arch"],
+                            developer_org_id=org["crg-dev"] if bu_slug == "crg" else None,
+                            city=city, state=state, gsf=None, start_date=days(start), end_date=days(end),
+                            description=f"{sector.replace('_', ' ').title()} project — {name}."))
+# projects.gross_sf column is named gross_sf:
+for r in lp_rows: r["gross_sf"] = r.pop("gsf")
+insert("projects", ["id", "business_unit_id", "code", "name", "sector", "lifecycle_stage", "status",
+                    "contract_value", "owner_org_id", "gc_org_id", "architect_org_id", "developer_org_id",
+                    "city", "state", "gross_sf", "start_date", "end_date", "description"], lp_rows)
+
+for p in LIGHT:
+    bac_total = round(p["value"] * 0.86)
+    # condensed cost accounts + latest EVM period (feeds kpi_evm/kpi_wip/backlog)
+    for code, cname, mfdiv, ctype, frac in LIGHT_WBS:
+        bac = round(bac_total * frac)
+        caid = uid("ca", p["key"], code)
+        lca_rows.append(dict(id=caid, project_id=p["id"], wbs_node_id=None,
+                             masterformat_code_id=mf_id.get(mfdiv), name=cname, cost_type=ctype,
+                             bac=bac, committed=round(bac * 0.95)))
+        pv = round(bac * p["planned"], 2); ev = round(bac * p["earned"], 2)
+        lcp_rows.append(dict(id=uid("cp", p["key"], code, 0), cost_account_id=caid,
+                             period=months_back(0), pv=pv, ev=ev,
+                             ac=round(ev / p["cpi"], 2) if p["cpi"] else ev))
+    # one latest pay app (feeds WIP); bill factor correlates loosely with cpi health
+    bill_factor = round(LR.uniform(0.94, 1.08), 3)
+    paid = uid("payapp", p["key"], 1)
+    lpa_rows.append(dict(id=paid, project_id=p["id"], number=1, period_end=months_back(0),
+                         status="approved", submitted_date=months_back(0),
+                         approved_date=days(-LR.randint(5, 20))))
+    billings = p["value"] * p["earned"] * bill_factor
+    for code, cname, mfdiv, ctype, frac in LIGHT_WBS:
+        wc = round(billings * frac, 2)
+        lpl_rows.append(dict(id=uid("payline", p["key"], code), pay_app_id=paid,
+                             cost_account_id=uid("ca", p["key"], code), description=cname,
+                             scheduled_value=round(bac_total * frac),
+                             work_completed_this_period=round(wc * 0.2, 2), work_completed_to_date=wc,
+                             materials_stored=0, retainage_pct=5.0, retainage_amount=round(wc * 0.05, 2)))
+    # two subcontracts → cross-portfolio vendor edges (highlight-by-vendor at scale)
+    for sub in LR.sample(SUB_POOL, 2):
+        lct_rows.append(dict(id=uid("contract", p["key"], sub), project_id=p["id"], org_id=org[sub],
+                             contract_type="subcontract", masterformat_code_id=None,
+                             value=round(bac_total * LR.uniform(0.08, 0.22)),
+                             executed_date=days(p["start"] + 30), status="executed",
+                             scope=f"Trade package — {sub.replace('-', ' ')}"))
+    # RFIs — dates driven by the heat profile (recent = hot)
+    lo, hi = p["recency"]
+    nrfi = LR.randint(4, 9) if p["stage"] == "construction" else (LR.randint(2, 5) if p["stage"] == "closeout" else LR.randint(0, 3))
+    for k in range(nrfi):
+        sub_date = days(-LR.randint(lo, hi + 30))
+        answered = LR.random() < 0.7
+        lrfi_rows.append(dict(id=uid("rfi", p["key"], k), project_id=p["id"], number=f"RFI-{k+1:03d}",
+                              subject=RFI_SUBJECTS[k % len(RFI_SUBJECTS)].format(g=LR.choice(["B-3", "C-5", "E-2", "G-7"])),
+                              body="Confirm intended condition per plans/spec.",
+                              discipline=LR.choice(["Architectural", "Structural", "Mechanical", "Electrical"]),
+                              spec_section_code_id=LR.choice([mf_id["08 44 00"], mf_id["26 20 00"], mf_id["03 30 00"], mf_id["23 60 00"]]),
+                              status="answered" if answered else "open",
+                              ball_in_court=LR.choice(["Architect", "Engineer", "GC"]),
+                              submitted_date=sub_date, due_date=sub_date + dt.timedelta(days=14),
+                              answered_date=sub_date + dt.timedelta(days=LR.randint(4, 25)) if answered else None,
+                              cost_impact=LR.choice([None, None, None, 12000, 45000]),
+                              schedule_impact_days=LR.choice([0, 0, 0, 3]),
+                              building_element_id=None, created_by_person_id=None))
+    # field activity: daily logs (TRIR hours) + occasional safety events.
+    # 20 logs keeps the TRIR denominator realistic — with only a handful of logs,
+    # a single recordable produces an absurd 50+ TRIR that reads as fake data.
+    if p["stage"] in ("construction", "closeout"):
+        crew = LR.randint(60, 210)
+        for k in range(20):
+            llog_rows.append(dict(id=uid("log", p["key"], k), project_id=p["id"],
+                                  log_date=days(-(lo + k * max(2, (hi - lo) // 20))),
+                                  weather=LR.choice(["Clear", "Cloudy", "Rain", "Windy"]),
+                                  temp_high=LR.randint(55, 92), temp_low=LR.randint(35, 70),
+                                  manpower_count=max(10, crew + LR.randint(-15, 15)),
+                                  work_performed=LR.choice(["Structure & deck pours", "Enclosure install",
+                                                            "MEP rough-in", "Site utilities", "Interior fit-out"]),
+                                  author_person_id=None))
+        if p["stage"] == "construction" and LR.random() < 0.45:
+            for k in range(1):  # at most one event per light project — TRIR stays plausible
+                rec = LR.random() < 0.5
+                lsafe_rows.append(dict(id=uid("safe", p["key"], k), project_id=p["id"],
+                                       event_date=days(-LR.randint(lo, hi + 60)),
+                                       type="recordable" if rec else LR.choice(["near_miss", "first_aid", "observation"]),
+                                       severity=LR.choice(["low", "medium", "high"]) if rec else "low",
+                                       recordable=rec, lost_time=False,
+                                       description="Field safety event — see report.",
+                                       corrective_action="Toolbox talk + revised JHA.",
+                                       person_id=None, location=LR.choice(["Site", "Structure", "Yard"])))
+    # 12-month KPI history so trend charts stay meaningful at portfolio scale
+    cur_spi = round(p["earned"] / p["planned"], 3) if p["planned"] else 1.0
+    for m in range(1, 13):
+        f = (13 - m) / 13.0
+        for metric, value in {"pct_complete": max(0.0, round(p["earned"] * f, 3)),
+                              "cpi": round(1.0 + (p["cpi"] - 1.0) * f + LR.uniform(-0.02, 0.02), 3),
+                              "spi": round(1.0 + (cur_spi - 1.0) * f + LR.uniform(-0.02, 0.02), 3)}.items():
+            lhist_rows.append(dict(id=uid("hist", p["key"], metric, m), snapshot_date=months_back(m),
+                                   business_unit_id=bu[p["bu"]], project_id=p["id"], metric=metric, value=value))
+
+insert("cost_accounts", ["id", "project_id", "wbs_node_id", "masterformat_code_id", "name", "cost_type", "bac", "committed"], lca_rows)
+insert("cost_progress", ["id", "cost_account_id", "period", "pv", "ev", "ac"], lcp_rows)
+insert("pay_apps", ["id", "project_id", "number", "period_end", "status", "submitted_date", "approved_date"], lpa_rows)
+insert("pay_app_lines", ["id", "pay_app_id", "cost_account_id", "description", "scheduled_value",
+                         "work_completed_this_period", "work_completed_to_date", "materials_stored",
+                         "retainage_pct", "retainage_amount"], lpl_rows)
+insert("contracts", ["id", "project_id", "org_id", "contract_type", "masterformat_code_id", "value", "executed_date", "status", "scope"], lct_rows)
+insert("rfis", ["id", "project_id", "number", "subject", "body", "discipline", "spec_section_code_id", "status",
+                "ball_in_court", "submitted_date", "due_date", "answered_date", "cost_impact",
+                "schedule_impact_days", "building_element_id", "created_by_person_id"], lrfi_rows)
+insert("daily_logs", ["id", "project_id", "log_date", "weather", "temp_high", "temp_low", "manpower_count", "work_performed", "author_person_id"], llog_rows)
+insert("safety_events", ["id", "project_id", "event_date", "type", "severity", "recordable", "lost_time", "description", "corrective_action", "person_id", "location"], lsafe_rows)
+insert("kpi_history", ["id", "snapshot_date", "business_unit_id", "project_id", "metric", "value"], lhist_rows)
+
 # ─── Rebuild graph + KPIs ────────────────────────────────────────────────────
 w("SELECT clayos.kg_reproject_all();")
 w("SELECT clayos.refresh_all_kpis();")

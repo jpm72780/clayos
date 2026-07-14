@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-14 — Session 7 (Fable 5): 200-project portfolio + orbital 3D layout — LIVE
+
+**Context.** John: get the UX right at real scale — 200 projects — before Snowflake. Direction:
+"expand the orbit"; left→right stays time; ball size stays data volume; **activity heat pulls a
+project toward the core** (his pick); periphery **fades with distance** (his suggestion); non-project
+stays below; use vertical AND depth.
+
+**Seed (seed/generate.py):** +192 light projects (~15–30 entities each: condensed cost accounts +
+latest EVM period, 1 pay app, 2 subcontracts, stage-appropriate RFIs/logs/safety) via a **separate
+RNG (4242) appended after the original generation — the 8 deep projects and their goldens stay
+byte-identical** (verified: Aurora CPI 0.910/SPI 0.839/TRIR 9.43). Each light project gets a
+hot/warm/cold HEAT profile driving its activity dates. Names deduped (city×template collisions).
+20 daily logs per light field project so TRIR denominators are sane (was 6 → one recordable = absurd
+50+ TRIR). **Cloud now: 200 projects, 6,328 entities (all embedded), 7,920 history rows.**
+
+**Orbital 3D (Lifecycle3DView):** x = lifecycle band (stage labels ride a **glowing time axis**);
+radial distance = activity heat (recency-decayed per-project score from kg_entity_facts — hot hugs
+the core, dormant drifts out); angle = BU sector over 292° (bottom wedge = backbone corridor);
+**periphery fades** (node colors lerp toward background, membranes/labels too); labels capped to the
+~48 hottest/biggest; hub size = data volume; camera frames the axis span; perf: nodeResolution 7/4,
+linkOpacity 0.26, DPR clamp. subgraph limit 2000→6000 (also GraphView/LifecycleView).
+
+**Analytics at scale (DashboardView):** per-project bar charts cap to **top 14 by the chart's own
+signal** (value/open RFIs/TRIR/|WIP|), focused project always kept, "top 14 of N" noted; the
+value-weighted portfolio stats still compute over the full set.
+
+**Evals:** harness `focus` now accepts an array of acceptable codes; goldens updated for the
+200-project landscape (over-budget → any of the top-5 worst Compute CPIs incl. DC-001; worst safety
+→ Charlotte Distribution Hub Ph2, TRIR 17.33). **6/6 pass against live.** Verified live headless:
+0 exceptions, orbit renders 200 globes + 2,178 movers, Data "of 6,328", Analytics caps active.
+
+**Next:** the orbital layout is the scale testbed for Phase 4a (Snowflake, real ~200 projects). UX
+ideas John may want next: cluster expand-on-zoom LOD, orbit legend/axis rings, per-BU orbit filters.
+
+---
+
 ## 2026-07-13 — Session 6 (Fable 5): Snowflake gap assessment + semantic-layer artifact set
 
 **Context.** John shared a trusted data map of Clayco's real warehouse (`DB_CONTROL_TOWER`:

@@ -36,8 +36,19 @@ const BACKBONE_GROUPS = [
 ];
 const BU_PALETTE = ["#38bdf8", "#a78bfa", "#f472b6", "#fb923c", "#4ade80"];
 const PHI = Math.PI * (3 - Math.sqrt(5));
-const RK = 11, GAP = 70;
-const DIR = (() => { const v = { x: 1, y: 0, z: -0.62 }; const m = Math.hypot(v.x, v.y, v.z); return { x: v.x / m, y: v.y / m, z: v.z / m }; })();
+
+// ── Orbital layout constants ──────────────────────────────────────────────────
+// The enterprise "core" is a horizontal time axis (lifecycle left→right). Every
+// project orbits it: ACTIVITY HEAT pulls a project toward the core, dormancy
+// pushes it to the periphery — and the periphery fades. The angle around the
+// axis is the project's business-unit sector, so the portfolio fills vertical
+// AND depth instead of marching along a line. Globe size stays data volume.
+// The backbone (people/vendors/IT/pipeline) keeps the corridor below.
+const RK = 11;              // globe radius = RK * sqrt(data volume)
+const R_CORE = 180;         // orbit radius of the hottest projects
+const R_SPAN = 500;         // extra radius toward the periphery for cold ones
+const STAGE_W = 740;        // x band per lifecycle stage
+const SECTOR_ARC = 292;     // degrees available to project sectors (the bottom wedge stays clear)
 
 function classify(data) {
   const nodesById = new Map(data.nodes.map((n) => [n.id, n]));
@@ -77,56 +88,76 @@ function spherePoint(k, n) {
   return { x: Math.cos(th) * rad * r, y: y * r, z: Math.sin(th) * rad * r };
 }
 
-function buildClusters(model) {
+function buildClusters(model, heatByPid) {
   const { projects, backbone } = model;
   const pos = new Map(), meta = new Map(), clusters = [], labels = [];
-  const buIds = [...new Set(projects.map((p) => p.bu))];
+  const buIds = [...new Set(projects.map((p) => p.bu))].sort();
   const buColor = (bu) => BU_PALETTE[buIds.indexOf(bu) % BU_PALETTE.length];
+  const maxHeat = Math.max(1e-6, ...projects.map((p) => heatByPid.get(p.pid) || 0));
+  const cellIdx = new Map(); // per (stage|bu) sibling counter → deterministic spread in the sector patch
 
-  let center = { x: -520, y: 0, z: 360 };
-  projects.forEach((p, i) => {
+  projects.forEach((p) => {
+    // sqrt spreads the mid-range so the core isn't a single winner + 199 stragglers
+    const heat = Math.sqrt((heatByPid.get(p.pid) || 0) / maxHeat);
+    const cellKey = p.stage + "|" + p.bu;
+    const k = cellIdx.get(cellKey) || 0; cellIdx.set(cellKey, k + 1);
     const R = RK * Math.sqrt(Math.max(p.count, 6));
-    if (i === 0) center = { x: center.x + DIR.x * R, y: center.y, z: center.z + DIR.z * R };
-    else { const prevR = RK * Math.sqrt(Math.max(projects[i - 1].count, 6)); const step = prevR + R + GAP; center = { x: center.x + DIR.x * step, y: 0, z: center.z + DIR.z * step }; }
-    const c = { x: center.x, y: Math.sin(i * 1.9) * 70, z: center.z };
+    // x: lifecycle band + deterministic in-band stagger (time still reads left→right)
+    const x = (p.stageIdx - 2) * STAGE_W + (((k * 37) % 7) - 3) * (STAGE_W * 0.11);
+    // orbit: hot hugs the core; angle = BU sector (0° = straight up), golden-ratio spread within it
+    const r = R_CORE + (1 - heat) * R_SPAN + R * 0.4 + (k % 3) * 34;
+    const arc = SECTOR_ARC / buIds.length;
+    const thetaDeg = -SECTOR_ARC / 2 + buIds.indexOf(p.bu) * arc + ((k * PHI * 180 / Math.PI) % arc);
+    const th = (thetaDeg * Math.PI) / 180;
+    const c = { x, y: r * Math.cos(th), z: r * Math.sin(th) };
+    const fade = 0.22 + 0.78 * heat; // the periphery fades — distance from the core = dormancy
     const color = buColor(p.bu);
-    clusters.push({ kind: "project", cid: p.pid, center: c, radius: R, color, label: p.code, count: p.count });
+    const hubVal = 12 + Math.sqrt(Math.max(p.count, 4)) * 3.4;
+    clusters.push({ kind: "project", cid: p.pid, center: c, radius: R, color, label: p.code, count: p.count, heat, fade });
     pos.set(p.node.id, { ...c });
-    meta.set(p.node.id, { cid: p.pid, pid: p.pid, domain: "project", type: "Project", label: p.name });
-    labels.push({ text: p.code, x: c.x, y: c.y + R + 26, z: c.z, color: "#fde68a", size: 13 });
+    meta.set(p.node.id, { cid: p.pid, pid: p.pid, domain: "project", type: "Project", label: p.name, fade, hubVal });
     const n = p.kids.length || 1;
-    p.kids.forEach((kid, k) => {
-      const sp = spherePoint(k, n);
+    p.kids.forEach((kid, kk) => {
+      const sp = spherePoint(kk, n);
       pos.set(kid.id, { x: c.x + sp.x * R, y: c.y + sp.y * R, z: c.z + sp.z * R });
-      meta.set(kid.id, { cid: p.pid, pid: p.pid, domain: kid.domain, type: kid.type, label: kid.label });
+      meta.set(kid.id, { cid: p.pid, pid: p.pid, domain: kid.domain, type: kid.type, label: kid.label, fade });
     });
   });
 
-  const stageX = new Map();
-  projects.forEach((p) => { const c = clusters.find((cl) => cl.cid === p.pid).center; if (!stageX.has(p.stage)) stageX.set(p.stage, []); stageX.get(p.stage).push(c); });
-  for (const [stage, cs] of stageX) {
-    const cx = cs.reduce((a, b) => a + b.x, 0) / cs.length, cz = cs.reduce((a, b) => a + b.z, 0) / cs.length;
-    labels.push({ text: STAGE_LABEL[stage] || stage, x: cx, y: 235, z: cz, color: "#9aa6b2", size: 15, faint: true });
+  // labels: 200 chips is noise — label the hot core + the biggest peripherals only
+  const labeled = clusters.filter((c) => c.kind === "project")
+    .sort((a, b) => (b.heat + b.count / 400) - (a.heat + a.count / 400)).slice(0, 48);
+  for (const c of labeled) {
+    labels.push({ text: c.label, x: c.center.x, y: c.center.y + c.radius + 24, z: c.center.z,
+                  color: "#fde68a", size: 12, opacity: 0.35 + 0.65 * c.fade });
   }
 
+  // stage labels ride the core axis itself
+  for (const [stage, idx] of Object.entries(STAGE_INDEX)) {
+    if (!projects.some((p) => p.stage === stage)) continue;
+    labels.push({ text: STAGE_LABEL[stage] || stage, x: (idx - 2) * STAGE_W, y: 36, z: 0, color: "#9aa6b2", size: 16, faint: true });
+  }
+
+  // backbone corridor stays below the whole orbit
   const present = BACKBONE_GROUPS.map((g) => ({ ...g, members: backbone.filter((n) => g.types.includes(n.type)) })).filter((g) => g.members.length);
+  const bbY = -(R_CORE + R_SPAN + 200);
   present.forEach((g, gi) => {
     const R = RK * Math.sqrt(Math.max(g.members.length, 6));
-    const c = { x: -340 + gi * 300, y: -250, z: -40 };
-    clusters.push({ kind: "backbone", cid: "bb:" + g.key, center: c, radius: R, color: g.tint, label: g.label, count: g.members.length });
-    labels.push({ text: g.label, x: c.x, y: c.y - R - 20, z: c.z, color: g.tint, size: 12, faint: true });
+    const c = { x: (gi - (present.length - 1) / 2) * 420, y: bbY, z: 60 };
+    clusters.push({ kind: "backbone", cid: "bb:" + g.key, center: c, radius: R, color: g.tint, label: g.label, count: g.members.length, fade: 1 });
+    labels.push({ text: g.label, x: c.x, y: c.y - R - 22, z: c.z, color: g.tint, size: 12, faint: true });
     const n = g.members.length || 1;
     g.members.forEach((node, k) => {
       const sp = spherePoint(k, n);
       pos.set(node.id, { x: c.x + sp.x * R, y: c.y + sp.y * R, z: c.z + sp.z * R });
-      meta.set(node.id, { cid: "bb:" + g.key, pid: null, domain: node.domain, type: node.type, label: node.label });
+      meta.set(node.id, { cid: "bb:" + g.key, pid: null, domain: node.domain, type: node.type, label: node.label, fade: 1 });
     });
   });
 
-  const cs = clusters.filter((c) => c.kind === "project").map((c) => c.center);
-  return { pos, meta, clusters, labels, centroid: { x: avg(cs, "x"), y: 0, z: avg(cs, "z") } };
+  const xs = clusters.filter((c) => c.kind === "project").map((c) => c.center.x);
+  const axis = { x0: Math.min(...xs) - 240, x1: Math.max(...xs) + 240 };
+  return { pos, meta, clusters, labels, axis, centroid: { x: (axis.x0 + axis.x1) / 2, y: 0, z: 0 } };
 }
-const avg = (arr, k) => arr.reduce((a, b) => a + b[k], 0) / (arr.length || 1);
 
 const SYSTEM_LABEL = { masterformat: "MasterFormat (CSI)", uniformat: "UniFormat" };
 const DIM = "#222933";
@@ -183,7 +214,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
   useEffect(() => {
     let killed = false; setLoading(true);
-    subgraph({ businessUnit, limit: 2000 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
+    subgraph({ businessUnit, limit: 6000 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
     return () => { killed = true; };
   }, [businessUnit]);
   useEffect(() => {
@@ -205,7 +236,18 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
   const graph = useMemo(() => {
     if (!model || !facts) return null;
-    const { pos, meta, clusters, labels, centroid } = buildClusters(model);
+    // activity heat per project: recency-decayed sum over its records' movement.
+    // This (not a UI window) is what pulls a project toward the orbit core.
+    const heatByPid = new Map();
+    for (const p of model.projects) {
+      let h = 0;
+      for (const kid of p.kids) {
+        const age = facts.actHours.get(kid.id);
+        if (age != null && age !== Infinity) h += Math.exp(-age / (24 * 45)); // ~45-day decay
+      }
+      heatByPid.set(p.pid, h);
+    }
+    const { pos, meta, clusters, labels, axis, centroid } = buildClusters(model, heatByPid);
     const nodes = []; const cidById = new Map(); const recById = new Map(); const amtById = new Map(); const typeById = new Map();
     for (const [id, p] of pos) {
       const m = meta.get(id);
@@ -226,7 +268,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           amt: Math.max(amtById.get(e.source), amtById.get(e.target)),             // $ carried → vessel width
         };
       });
-    return { nodes, links, clusters, labels, centroid };
+    return { nodes, links, clusters, labels, axis, centroid };
   }, [model, data, facts]);
 
   const hot = useMemo(() => {
@@ -256,8 +298,14 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     return { mode: focus ? "project" : "enterprise", ...computeKpis(focus, evm, field, safety) };
   }, [hl, hot, focus, facts, model, evm, field, safety]);
 
-  const nodeColor = (n) => { const h = hotRef.current; return h && !h.set.has(n.id) ? DIM : colorFor(n.type); };
-  const nodeVal = (n) => { const base = n.type === "Project" ? 34 : 3; const h = hotRef.current; return h && h.set.has(n.id) ? base * 2.2 : base; };
+  // periphery fade: blend a node's color toward the background by its project's fade
+  const faded = (hex, f) => "#" + new THREE.Color("#0b1017").lerp(new THREE.Color(hex), f).getHexString();
+  const nodeColor = (n) => {
+    const h = hotRef.current;
+    if (h) return h.set.has(n.id) ? colorFor(n.type) : DIM; // highlight overrides fade
+    return n.fade != null && n.fade < 1 ? faded(colorFor(n.type), n.fade) : colorFor(n.type);
+  };
+  const nodeVal = (n) => { const base = n.type === "Project" ? (n.hubVal || 30) : 3; const h = hotRef.current; return h && h.set.has(n.id) ? base * 2.2 : base; };
   // pulses move faster the more recently their data point moved (within the window)
   const particleSpeed = (l) => flowSpeedRef.current * (1 + Math.min(1, Math.max(0, 1 - l.rh / windowRef.current)) * 2.5);
   const hubIntensityRef = useRef(new Map()); // pid -> 0..1 recent-activity intensity, drives hub pulse
@@ -283,13 +331,13 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       .width(el.clientWidth).height(el.clientHeight)
       .graphData({ nodes: graph.nodes, links: graph.links })
       .cooldownTicks(1) // nodes are pinned (fx/fy/fz); 1 tick initialises link curves for particles
-      .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(lite ? 5 : 9)
+      .nodeColor(nodeColor).nodeVal(nodeVal).nodeOpacity(0.96).nodeResolution(lite ? 4 : 7)
       .nodeLabel((n) => { const h = hotRef.current; if (h && !h.set.has(n.id)) return ""; return `<div style="font-size:12px"><b>${n.label}</b><br/><span style="opacity:.6">${n.type} · ${n.domain}</span></div>`; })
       .linkCurvature(0.22)
       // paths are a quiet, thin structure; thickness grows with the $ a record carries
       .linkWidth((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? 0.9 : 0.1; return vesselWidth(l.amt); })
       .linkColor((l) => { const h = hotRef.current; if (h) return (h.set.has(l.source.id || l.source) && h.set.has(l.target.id || l.target)) ? "#f59e0b" : "#0a0e14"; return l.amt > 1e6 ? "#26384b" : (l.cross ? "#22303f" : "#161f29"); })
-      .linkOpacity(0.32)
+      .linkOpacity(0.26)
       // particles = actual data points that moved within the window; colour = what moved, speed = how recent
       .linkDirectionalParticles((l) => (!lite && l.rh <= windowRef.current ? 1 : 0))
       .linkDirectionalParticleWidth(flowSizeRef.current).linkDirectionalParticleSpeed(particleSpeed).linkDirectionalParticleColor((l) => colorFor(l.moverType))
@@ -301,15 +349,32 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         const d = await entityDetail(n.id); setSelected(d || { missing: true });
       });
 
-    // depth haze for the "flying through" feel
-    g.scene().fog = new THREE.FogExp2(0x05070b, 0.00055);
+    // depth haze — lighter than before: the orbit is a much bigger volume
+    g.scene().fog = new THREE.FogExp2(0x05070b, 0.00028);
 
-    // faint membrane around each vascular system
+    // the enterprise core: a faint glowing time axis the whole portfolio orbits
+    if (graph.axis) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(graph.axis.x0, 0, 0), new THREE.Vector3(graph.axis.x1, 0, 0)]);
+      const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending }));
+      line.raycast = () => {};
+      g.scene().add(line);
+      const tube = new THREE.Mesh(
+        new THREE.CylinderGeometry(6, 6, graph.axis.x1 - graph.axis.x0, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x155e63, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
+      tube.rotation.z = Math.PI / 2;
+      tube.position.set((graph.axis.x0 + graph.axis.x1) / 2, 0, 0);
+      tube.raycast = () => {};
+      g.scene().add(tube);
+    }
+
+    // faint membrane around each vascular system — periphery membranes fade too
     for (const c of graph.clusters) {
       const col = new THREE.Color(c.color);
-      const fill = new THREE.Mesh(new THREE.SphereGeometry(c.radius * 1.05, 18, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.045 }));
+      const f = c.fade ?? 1;
+      const fill = new THREE.Mesh(new THREE.SphereGeometry(c.radius * 1.05, 18, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.045 * (0.35 + 0.65 * f) }));
       fill.position.set(c.center.x, c.center.y, c.center.z);
-      const wire = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(c.radius * 1.05, 12, 9)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.09 }));
+      const wire = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(c.radius * 1.05, 12, 9)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.09 * f }));
       wire.position.copy(fill.position);
       fill.raycast = () => {}; wire.raycast = () => {}; // decorative — don't block node clicks
       g.scene().add(fill); g.scene().add(wire);
@@ -317,7 +382,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     for (const lb of graph.labels) {
       const s = new SpriteText(lb.text); s.color = lb.color; s.textHeight = lb.size;
       s.backgroundColor = "rgba(4,7,11,0.6)"; s.padding = lb.size * 0.35; s.borderRadius = 2; // dark chip keeps text crisp under bloom
-      s.material.opacity = lb.faint ? 0.7 : 1; s.material.transparent = true; s.position.set(lb.x, lb.y, lb.z);
+      s.material.opacity = lb.opacity ?? (lb.faint ? 0.7 : 1); s.material.transparent = true; s.position.set(lb.x, lb.y, lb.z);
       s.raycast = () => {};
       g.scene().add(s);
     }
@@ -368,11 +433,13 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
     clusterCentersRef.current = new Map(graph.clusters.map((c) => [c.cid, c]));
     const ctr = graph.centroid;
-    g.cameraPosition({ x: ctr.x + 220, y: 240, z: ctr.z + 980 }, ctr, 0);
+    // frame the whole orbit: distance follows the time-axis span, not a fixed constant
+    const span = graph.axis ? graph.axis.x1 - graph.axis.x0 : 2400;
+    g.cameraPosition({ x: ctr.x + 260, y: 540, z: ctr.z + span * 0.6 + 950 }, ctr, 0);
     const controls = g.controls();
     controlsRef.current = controls;
     if (controls) {
-      controls.autoRotate = true; controls.autoRotateSpeed = 0.42;
+      controls.autoRotate = true; controls.autoRotateSpeed = 0.28;
       controls.enablePan = true; controls.enableZoom = true;
       controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     }
@@ -472,15 +539,17 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         <div className="text-[10px] text-white/50 leading-snug space-y-1">
           {literal ? (
             <>
-              <div>Each sphere = a <b>project</b>, tinted by business unit; it brightens the more records changed recently.</div>
+              <div>Each sphere = a <b>project</b>, tinted by business unit; sized by how much data it holds.</div>
+              <div><b>Active projects sit near the glowing time axis</b>; dormant ones drift outward and fade. Left→right = lifecycle. Angle = business unit.</div>
               <div>Each moving dot = a <b>record updated</b> in the time window (colour = record type); faster = more recent.</div>
-              <div>Thicker links carry more <b>contract $</b> (contracts, pay apps, cost accounts). Click a project → KPIs + agent rescope.</div>
+              <div>Thicker links carry more <b>contract $</b>. Click a project → KPIs + agent rescope.</div>
             </>
           ) : (
             <>
-              <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit; it <b>pulses</b> brighter the more it has moved lately.</div>
+              <div>Each glowing globe = a <b>project</b> (a vascular system), tinted by business unit, sized by its data mass.</div>
+              <div><b>The core pulls in whatever is hot</b> — active projects orbit the glowing time axis; dormant ones drift to the faded periphery. Left→right = lifecycle. Angle = business unit.</div>
               <div>Each pulse = a <b>real data point that moved</b> in the window (colour = what kind); faster = more recent.</div>
-              <div>Thicker vessels carry more <b>$</b> (contracts, pay-apps, cost). Click a project → KPIs + agent rescope.</div>
+              <div>Thicker vessels carry more <b>$</b>. Click a project → KPIs + agent rescope.</div>
             </>
           )}
         </div>

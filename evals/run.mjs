@@ -25,7 +25,9 @@ for (const c of cases) {
     const answer = (r.answer || r.error || "");
     for (const e of c.expect || []) if (!answer.toLowerCase().includes(String(e).toLowerCase())) { ok = false; notes.push(`missing "${e}"`); }
     if (c.tool && !(r.tool_calls || []).some((t) => t.name === c.tool)) { ok = false; notes.push(`expected tool ${c.tool}`); }
-    if (c.focus && r.focus?.project_code !== c.focus) { ok = false; notes.push(`focus ${r.focus?.project_code} != ${c.focus}`); }
+    // focus may be a single code or an array of acceptable codes (e.g. "over budget"
+    // has 20+ legitimate answers at 200 projects — any top offender is correct)
+    if (c.focus && ![].concat(c.focus).includes(r.focus?.project_code)) { ok = false; notes.push(`focus ${r.focus?.project_code} not in ${[].concat(c.focus).join("/")}`); }
   } catch (e) { ok = false; notes.push("error: " + e.message); }
   console.log(`${ok ? "PASS" : "FAIL"}  ${c.q.slice(0, 60)}${ok ? "" : "  — " + notes.join("; ")}`);
   ok ? pass++ : fail++;

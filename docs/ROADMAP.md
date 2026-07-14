@@ -122,6 +122,15 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [x] Fixed 24px horizontal overflow at 390px (header BU select); inline SVG favicon (was a 404 every visit)
 - [x] Verified headless (snap chromium + puppeteer-core): 17/17 checks, 0 exceptions at 1440px + 390px
 
+## Phase 2.9 — Portfolio scale + orbital ontology (session 7, 2026-07-14) — SHIPPED LIVE
+- [x] Seed: 200 projects (8 deep byte-identical + 192 light w/ heat profiles), 6,328 entities,
+      names deduped, sane TRIR denominators; cloud reseeded + fully embedded
+- [x] 3D orbital layout: glowing time axis · radial = activity heat (core pull) · angle = BU sector ·
+      periphery fade · label cap (~48) · axis-framed camera · perf knobs; subgraph limit 6000
+- [x] Analytics top-14-by-signal chart caps (focused project always kept); Data verified at 6,328 rows
+- [x] Evals: focus-set support in harness; goldens updated for the 200-project landscape (6/6 live)
+- [ ] Cluster expand-on-zoom LOD (next scale step if entity count grows past ~8-10k)
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [x] Agent eval set (golden Q→A) — `evals/`

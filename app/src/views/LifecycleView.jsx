@@ -204,7 +204,7 @@ export default function LifecycleView({ businessUnit }) {
   useEffect(() => {
     let killed = false;
     setLoading(true);
-    subgraph({ businessUnit, limit: 2000 })
+    subgraph({ businessUnit, limit: 6000 })
       .then((d) => { if (!killed) { setData(d); setLoading(false); } })
       .catch((e) => { console.error(e); if (!killed) setLoading(false); });
     return () => { killed = true; };

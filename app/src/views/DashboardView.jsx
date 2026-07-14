@@ -109,14 +109,30 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
   const evmF = projF(evm), fieldF = projF(field), safetyF = projF(safety), wipF = projF(wip);
   const backlogF = buF(backlog), pipelineF = buF(pipeline), utilF = buF(util);
 
-  const cpiData = evmF.map((p) => ({ name: short(p.project_name), CPI: Number(p.cpi), SPI: Number(p.spi) }));
-  const budgetData = evmF.map((p) => ({ name: short(p.project_name), BAC: Number(p.bac) / 1e6, EAC: Number(p.eac) / 1e6 }));
-  const rfiData = fieldF.map((p) => ({ name: short(p.project_name), Open: p.open_rfis, Total: p.total_rfis }));
-  const trirData = safetyF.map((p) => ({ name: short(p.project_name), TRIR: Number(p.trir) }));
-  const wipData = wipF.map((p) => ({ name: short(p.project_name), v: Number(p.over_under_billing) / 1e6 }));
-
-  // value-weighted portfolio analytics
   const N = (v) => Number(v || 0);
+
+  // At portfolio scale (200 projects) per-project bars are unreadable — chart the
+  // top N by the chart's own signal, always keeping the focused project visible.
+  // The value-weighted portfolio stats above stay computed over the FULL set.
+  const TOP_N = 14;
+  const capped = (arr, signal) => {
+    if (arr.length <= TOP_N) return arr;
+    const top = [...arr].sort((a, b) => signal(b) - signal(a)).slice(0, TOP_N);
+    if (focus && !top.some((p) => p.project_id === focus.pid)) {
+      const f = arr.find((p) => p.project_id === focus.pid);
+      if (f) top[top.length - 1] = f;
+    }
+    return top;
+  };
+  const capNote = (n) => (n > TOP_N ? ` · top ${TOP_N} of ${n}` : "");
+  const evmC = capped(evmF, (p) => N(p.bac));
+  const cpiData = evmC.map((p) => ({ name: short(p.project_name), CPI: Number(p.cpi), SPI: Number(p.spi) }));
+  const budgetData = evmC.map((p) => ({ name: short(p.project_name), BAC: Number(p.bac) / 1e6, EAC: Number(p.eac) / 1e6 }));
+  const rfiData = capped(fieldF, (p) => p.open_rfis || 0).map((p) => ({ name: short(p.project_name), Open: p.open_rfis, Total: p.total_rfis }));
+  const trirData = capped(safetyF.filter((p) => p.trir != null), (p) => N(p.trir)).map((p) => ({ name: short(p.project_name), TRIR: Number(p.trir) }));
+  const wipData = capped(wipF, (p) => Math.abs(N(p.over_under_billing))).map((p) => ({ name: short(p.project_name), v: Number(p.over_under_billing) / 1e6 }));
+
+  // value-weighted portfolio analytics (full set, never the capped chart slices)
   const bac = evmF.reduce((a, p) => a + N(p.bac), 0), eac = evmF.reduce((a, p) => a + N(p.eac), 0);
   const wCpi = evmF.reduce((a, p) => a + N(p.cpi) * N(p.bac), 0) / (bac || 1);
   const wSpi = evmF.reduce((a, p) => a + N(p.spi) * N(p.bac), 0) / (bac || 1);
@@ -251,7 +267,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
 
       {/* charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title="Cost & Schedule Performance" sub="CPI / SPI by project · 1.0 = on plan (lower = behind/over)"
+        <Card title="Cost & Schedule Performance" sub={`CPI / SPI by project · 1.0 = on plan (lower = behind/over)${capNote(evmF.length)}`}
           csvRows={cpiData} name="cost-schedule" onAsk={onAsk} ask={`For ${askScope}, which projects are under-performing on cost (CPI) or schedule (SPI), and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={cpiData} margin={{ left: -16 }}>
@@ -266,7 +282,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Budget vs Forecast at Completion" sub="BAC vs EAC ($M) · EAC > BAC = projected overrun"
+        <Card title="Budget vs Forecast at Completion" sub={`BAC vs EAC ($M) · EAC > BAC = projected overrun${capNote(evmF.length)}`}
           csvRows={budgetData} name="budget-vs-forecast" onAsk={onAsk} ask={`For ${askScope}, which projects show the biggest forecast overrun (EAC vs BAC) and what's causing it?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={budgetData} margin={{ left: -16 }}>
@@ -277,7 +293,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Work-in-Progress — over / under billing" sub="$M billed vs earned · positive = overbilled, negative = underbilled"
+        <Card title="Work-in-Progress — over / under billing" sub={`$M billed vs earned · positive = overbilled, negative = underbilled${capNote(wipF.length)}`}
           csvRows={wipData} name="wip-billing" onAsk={onAsk} ask={`For ${askScope}, which projects are most over- or under-billed (WIP), and what does that imply for cash?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={wipData} margin={{ left: -16 }}>
@@ -288,7 +304,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Open RFIs" sub="Open vs total RFIs by project"
+        <Card title="Open RFIs" sub={`Open vs total RFIs by project${capNote(fieldF.length)}`}
           csvRows={rfiData} name="open-rfis" onAsk={onAsk} ask={`For ${askScope}, which projects have the most open RFIs and what's the average turnaround?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={rfiData} margin={{ left: -16 }}>
@@ -299,7 +315,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Safety — TRIR" sub="Total Recordable Incident Rate (per 200k hours)"
+        <Card title="Safety — TRIR" sub={`Total Recordable Incident Rate (per 200k hours)${capNote(safetyF.length)}`}
           csvRows={trirData} name="safety-trir" onAsk={onAsk} ask={`For ${askScope}, which projects have the worst safety record (TRIR vs the industry average) and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={trirData} margin={{ left: -16 }}>
