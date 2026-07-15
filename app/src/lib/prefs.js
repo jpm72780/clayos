@@ -8,6 +8,14 @@ const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
 
 export const DEFAULT_PREFS = { palette: "default", contrast: false, literal: false };
 
-export const loadPrefs = () => ({ ...DEFAULT_PREFS, ...read() });
+export const loadPrefs = () => {
+  const stored = read();
+  const p = { ...DEFAULT_PREFS, ...stored };
+  // No explicit choice yet → honor the OS-level "prefers more contrast" signal.
+  if (!("contrast" in stored) && typeof window !== "undefined" && window.matchMedia?.("(prefers-contrast: more)").matches) {
+    p.contrast = true;
+  }
+  return p;
+};
 
 export const savePrefs = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ } };

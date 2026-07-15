@@ -8,9 +8,10 @@ import {
   wipByProject, backlogByBu, pipelineByBu, utilizationByBu, kpiHistory,
 } from "../lib/api.js";
 import { defOf } from "../lib/glossary.js";
+import { chartColor } from "../lib/palette.js";
+import { fmtMoney as fmt$ } from "../lib/format.js";
 import { SkeletonStats, SkeletonCard } from "../components/Skeleton.jsx";
 
-const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(1) + "M");
 const fmtPct = (n) => (n == null ? "—" : (Number(n) * 100).toFixed(0) + "%");
 const short = (s) => (s || "").replace(/ (Hyperscale|Cloud Campus|Cell Therapy|Logistics Park|Logistics|Mixed-Use|Student Living|Fab|Expansion).*/, "");
 
@@ -44,7 +45,7 @@ function Card({ title, children, sub, csvRows, name, ask, onAsk }) {
     <div className="min-w-0 bg-[#0d1218] border border-white/10 rounded-xl p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-white/80">{title}</div>
+          <h3 className="text-sm font-medium text-white/80">{title}</h3>
           {sub && <div className="text-xs text-white/40">{sub}</div>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -171,11 +172,11 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
   }
 
   return (
-    <div className="h-full overflow-auto p-3 md:p-5">
+    <div className="h-full overflow-auto p-3 md:p-5 pb-16 md:pb-20">
       {/* portfolio analytics — calculated, value-weighted */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-medium text-white/80">Portfolio analytics</span>
+          <h2 className="text-sm font-medium text-white/80">Portfolio analytics</h2>
           <span className="text-white/40 text-xs">· {port.n} project{port.n === 1 ? "" : "s"}, value-weighted</span>
           {focus && <button onClick={() => setFocus?.(null)} className="text-xs rounded px-2 py-0.5 bg-amber-500/15 text-amber-200">{focus.code || focus.name} ✕</button>}
         </div>
@@ -197,7 +198,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
           const hasProjects = Number(r.active_projects) > 0 || Number(r.total_contract_value) > 0;
           return (
             <div key={r.business_unit_id} className="bg-[#0d1218] border border-white/10 rounded-xl p-4">
-              <div className="text-xs text-white/50">{r.business_unit_name}</div>
+              <h3 className="text-xs text-white/50 font-normal">{r.business_unit_name}</h3>
               {hasProjects ? (
                 <>
                   <div className="text-2xl font-semibold mt-1">{fmt$(r.total_contract_value)}</div>
@@ -216,14 +217,14 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
 
       {/* backlog · pipeline · utilization by business unit (previously-hidden KPIs) */}
       <div className="mb-5">
-        <div className="text-sm font-medium text-white/80 mb-2">Backlog · pipeline · workforce <span className="text-white/40 text-xs">· by business unit</span></div>
+        <h2 className="text-sm font-medium text-white/80 mb-2">Backlog · pipeline · workforce <span className="text-white/40 text-xs">· by business unit</span></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {backlogF.map((b) => {
             const pl = pipelineF.find((x) => x.business_unit_id === b.business_unit_id) || {};
             const ru = utilF.find((x) => x.business_unit_id === b.business_unit_id) || {};
             return (
               <div key={b.business_unit_id} className="bg-[#0d1218] border border-white/10 rounded-xl p-4">
-                <div className="text-sm text-white/80 mb-2">{buName(b.business_unit_id)}</div>
+                <h3 className="text-sm text-white/80 mb-2 font-normal">{buName(b.business_unit_id)}</h3>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div><MetricLabel className="text-[10px] text-white/45 inline-block">Backlog</MetricLabel><div className="text-base font-semibold">{fmt$(b.backlog)}</div></div>
                   <div title={pl.open_pipeline_value == null ? "No open pursuits tracked for this unit" : undefined}>
@@ -257,8 +258,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
                 <YAxis domain={[0.8, 1.2]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
                 <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
                 <ReferenceLine y={1} stroke="#64748b" strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="CPI" stroke="#22d3ee" dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="SPI" stroke="#a3e635" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="CPI" stroke={chartColor("cpiLine")} dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="SPI" stroke={chartColor("spiLine")} dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </Card>
@@ -276,8 +277,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
               <YAxis domain={[0, 1.3]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
               <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
               <ReferenceLine y={1} stroke="#64748b" strokeDasharray="4 4" />
-              <Bar dataKey="CPI" fill="#22d3ee">{cpiData.map((d, i) => <Cell key={i} fill={d.CPI < 1 ? "#ef4444" : "#22d3ee"} />)}</Bar>
-              <Bar dataKey="SPI" fill="#a3e635">{cpiData.map((d, i) => <Cell key={i} fill={d.SPI < 1 ? "#f59e0b" : "#a3e635"} />)}</Bar>
+              <Bar dataKey="CPI" fill={chartColor("cpiOk")}>{cpiData.map((d, i) => <Cell key={i} fill={d.CPI < 1 ? chartColor("cpiBad") : chartColor("cpiOk")} />)}</Bar>
+              <Bar dataKey="SPI" fill={chartColor("spiOk")}>{cpiData.map((d, i) => <Cell key={i} fill={d.SPI < 1 ? chartColor("spiBad") : chartColor("spiOk")} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -288,7 +289,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
             <BarChart data={budgetData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
               <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="BAC" fill="#3b82f6" /><Bar dataKey="EAC" fill="#f59e0b" />
+              <Bar dataKey="BAC" fill={chartColor("bac")} /><Bar dataKey="EAC" fill={chartColor("eac")} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -299,7 +300,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
             <BarChart data={wipData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
               <Tooltip {...tip} /><ReferenceLine y={0} stroke="#64748b" />
-              <Bar dataKey="v" name="over/under ($M)">{wipData.map((d, i) => <Cell key={i} fill={d.v >= 0 ? "#f59e0b" : "#22d3ee"} />)}</Bar>
+              <Bar dataKey="v" name="over/under ($M)">{wipData.map((d, i) => <Cell key={i} fill={d.v >= 0 ? chartColor("over") : chartColor("under")} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -310,7 +311,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
             <BarChart data={rfiData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
               <Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Total" fill="#334155" /><Bar dataKey="Open" fill="#ef4444" />
+              <Bar dataKey="Total" fill={chartColor("total")} /><Bar dataKey="Open" fill={chartColor("open")} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -321,7 +322,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
             <BarChart data={trirData} margin={{ left: -16 }}>
               <CartesianGrid stroke="#1a212b" /><XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} /><YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
               <Tooltip {...tip} /><ReferenceLine y={3.0} stroke="#64748b" strokeDasharray="4 4" label={{ value: "industry avg", fill: "#64748b", fontSize: 10 }} />
-              <Bar dataKey="TRIR" fill="#dc2626" />
+              <Bar dataKey="TRIR" fill={chartColor("danger")} />
             </BarChart>
           </ResponsiveContainer>
         </Card>

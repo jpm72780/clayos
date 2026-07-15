@@ -10,6 +10,7 @@ import {
 import { colorFor, shapeFor, TYPE_COLOR } from "../lib/palette.js";
 import OntologyIntro from "../components/OntologyIntro.jsx";
 import { defOf } from "../lib/glossary.js";
+import { fmtMoney as fmt$ } from "../lib/format.js";
 import { loadPrefs } from "../lib/prefs.js";
 
 // literal-labels preference: read once per mount (App remounts the view on change)
@@ -163,7 +164,6 @@ function buildClusters(model, heatByPid) {
 const SYSTEM_LABEL = { masterformat: "MasterFormat (CSI)", uniformat: "UniFormat" };
 const DIM = "#222933";
 const num = (v) => (v == null ? null : Number(v));
-const fmt$ = (n) => (n == null ? "—" : "$" + (Number(n) / 1e6).toFixed(0) + "M");
 
 // Flow time-window (hours back from now). Recency is REAL — derived from each
 // record's semantic date via kg_entity_facts() (migration 010).
@@ -537,7 +537,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:max-w-[85vw] max-md:shadow-2xl
         ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
         <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 text-xs text-white/45 hover:text-white/80">✕ close</button>
-        <div className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</div>
+        <h3 className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</h3>
         <div className="text-white/35 text-[11px] mb-3 leading-snug">Light up the keys that carry data <em>between</em> systems — across every project at once.</div>
         <Field label="MasterFormat · CSI code">
           <select className="cl-select" value={hl?.dim === "masterformat" ? hl.value : ""} onChange={(e) => { const c = mfCodes.find((x) => x.code === e.target.value); pick("masterformat", c?.code, c && `${c.code} · ${c.title}`, c?.depth); }}>
@@ -560,7 +560,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           </select>
         </Field>
         {hl && (<button onClick={() => setHl(null)} className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-amber-500/15 text-amber-300 hover:bg-amber-500/25">✕ clear highlight</button>)}
-        <div className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Reading it</div>
+        <h3 className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Reading it</h3>
         <div className="text-[10px] text-white/50 leading-snug space-y-1">
           {literal ? (
             <>
@@ -578,7 +578,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
             </>
           )}
         </div>
-        <div className="text-white/40 text-[10px] uppercase tracking-wide mt-4 mb-1">Entity types</div>
+        <h3 className="text-white/40 text-[10px] uppercase tracking-wide mt-4 mb-1">Entity types</h3>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">{Object.keys(TYPE_COLOR).map((t) => (<div key={t} className="flex items-center gap-1 text-[10px] text-white/55"><span className="w-3 text-center leading-none shrink-0" style={{ color: colorFor(t) }}>{shapeFor(t)}</span>{t}</div>))}</div>
         <style>{`.cl-select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 6px;font-size:12px;color:#e5e7eb}`}</style>
       </aside>
@@ -588,7 +588,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         <OntologyIntro />
 
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
-          <div className="text-sm text-white/80 font-medium">{literal ? "Clayco ontology — projects and the systems they share" : "Clayco ontology — interwoven project systems"}</div>
+          <h2 className="text-sm text-white/80 font-medium">{literal ? "Clayco ontology — projects and the systems they share" : "Clayco ontology — interwoven project systems"}</h2>
           <div className="text-xs text-white/45 mt-0.5 max-md:hidden">orbit: left/middle drag · pan: right drag · zoom: scroll · click a project to focus everything on it.</div>
           {hl && hot && (
             <div className="mt-2 inline-block bg-amber-500/15 text-amber-200 text-xs rounded px-2 py-1 pointer-events-auto">
@@ -598,9 +598,9 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         </div>
 
         <div className="absolute top-3 right-11 z-10 flex items-center gap-1.5">
-          <button onClick={() => setLite((v) => !v)} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
+          <button onClick={() => setLite((v) => !v)} aria-label="Toggle lite visual quality" aria-pressed={lite} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
             className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{lite ? "○ lite" : "● full"}</button>
-          <button onClick={() => setSpin((s) => !s)} className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
+          <button onClick={() => setSpin((s) => !s)} aria-label="Toggle camera drift" aria-pressed={spin} title="Camera drift — slow auto-orbit" className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
         </div>
 
         {/* flow controls — what's moving, how fast, how big */}
@@ -610,13 +610,13 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
             <span className="text-cyan-300/90">{activeCount} {literal ? "updated" : "moved"}</span>
           </div>
           <label className="block text-white/45 text-[10px] mt-1">Active in the last <b className="text-white/70">{WINDOWS[windowIdx].label}</b></label>
-          <input type="range" min="0" max={WINDOWS.length - 1} step="1" value={windowIdx} onChange={(e) => setWindowIdx(+e.target.value)} className="cl-range" />
+          <input type="range" aria-label="Activity time window" min="0" max={WINDOWS.length - 1} step="1" value={windowIdx} onChange={(e) => setWindowIdx(+e.target.value)} className="cl-range" />
           <label className="block text-white/45 text-[10px] mt-2">Speed</label>
-          <input type="range" min="0.001" max="0.012" step="0.0005" value={flowSpeed} onChange={(e) => setFlowSpeed(+e.target.value)} className="cl-range" />
+          <input type="range" aria-label="Flow speed" min="0.001" max="0.012" step="0.0005" value={flowSpeed} onChange={(e) => setFlowSpeed(+e.target.value)} className="cl-range" />
           <label className="block text-white/45 text-[10px] mt-2">Size</label>
-          <input type="range" min="3" max="10" step="0.25" value={flowSize} onChange={(e) => setFlowSize(+e.target.value)} className="cl-range" />
+          <input type="range" aria-label="Flow particle size" min="3" max="10" step="0.25" value={flowSize} onChange={(e) => setFlowSize(+e.target.value)} className="cl-range" />
           <label className="block text-white/45 text-[10px] mt-2">Periphery fade <span className="text-white/30">· dormant projects dim</span></label>
-          <input type="range" min="0" max="0.95" step="0.05" value={fadeAmt} onChange={(e) => setFadeAmt(+e.target.value)} className="cl-range" />
+          <input type="range" aria-label="Periphery fade for dormant projects" min="0" max="0.95" step="0.05" value={fadeAmt} onChange={(e) => setFadeAmt(+e.target.value)} className="cl-range" />
           <style>{`.cl-range{width:100%;accent-color:#38bdf8;height:3px}`}</style>
         </div>
 
@@ -661,11 +661,11 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
               <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white/70 text-xs mb-2">✕ close</button>
               <div className="flex items-center gap-2 mb-1"><span className="w-3 h-3 rounded-full" style={{ background: colorFor(selected.entity.entity_type) }} /><span className="text-xs text-white/50">{selected.entity.entity_type} · {selected.entity.domain}</span></div>
               <div className="text-base font-semibold mb-3">{selected.entity.label}</div>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Record · {selected.entity.source_table}</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Record · {selected.entity.source_table}</h3>
               <table className="w-full text-xs mb-4"><tbody>
                 {Object.entries(selected.record || {}).filter(([k]) => k !== "id").slice(0, 24).map(([k, v]) => (<tr key={k} className="border-b border-white/5"><td className="py-1 pr-2 text-white/40 align-top">{k}</td><td className="py-1 text-white/80 break-words">{v === null ? "—" : String(v)}</td></tr>))}
               </tbody></table>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Connected ({(selected.neighbors.nodes || []).length - 1})</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Connected ({(selected.neighbors.nodes || []).length - 1})</h3>
               <div className="space-y-1">
                 {(selected.neighbors.nodes || []).filter((n) => n.id !== selected.entity.id).slice(0, 30).map((n) => (<div key={n.id} className="flex items-center gap-2 text-white/70"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(n.type) }} /><span className="truncate">{n.label}</span><span className="text-white/30 text-[10px] ml-auto shrink-0">{n.type}</span></div>))}
               </div>
@@ -677,7 +677,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   );
 }
 
-function Field({ label, children }) { return (<div className="mb-3"><div className="text-white/55 text-[11px] mb-1">{label}</div>{children}</div>); }
+function Field({ label, children }) { return (<label className="block mb-3"><span className="block text-white/55 text-[11px] mb-1">{label}</span>{children}</label>); }
 function Kpi({ label, value, sub, warn }) {
   const def = defOf(label);
   return (

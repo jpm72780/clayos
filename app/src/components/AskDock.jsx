@@ -34,6 +34,8 @@ const loadSize = () => { try { return JSON.parse(localStorage.getItem("clayos.as
 // and expandable; size persists in localStorage.
 export default function AskDock({ projects, focus, setFocus, setHl, goToOntology, seed, onSeedConsumed }) {
   const [open, setOpen] = useState(false);
+  // fully-minimized pill — the dock floats over tables/charts, so it must be dismissible
+  const [min, setMin] = useState(() => { try { return localStorage.getItem("clayos.ask.min") === "1"; } catch { return false; } });
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,10 +47,13 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
   // keep the transcript pinned to the latest as tokens stream / messages append
   useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs, live, open]);
 
+  const setMinPersisted = (v) => { setMin(v); try { localStorage.setItem("clayos.ask.min", v ? "1" : "0"); } catch { /* ignore */ } };
+  const hide = () => { setMinPersisted(true); setOpen(false); };
+
   // "Ask Clayco about this" from a chart pushes a question in here → open + send it.
   const seedRef = useRef(null);
   useEffect(() => {
-    if (seed && seed !== seedRef.current && !busy) { seedRef.current = seed; setOpen(true); send(seed); onSeedConsumed?.(); }
+    if (seed && seed !== seedRef.current && !busy) { seedRef.current = seed; setMinPersisted(false); setOpen(true); send(seed); onSeedConsumed?.(); }
   }, [seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // drag the top-left grip to resize (dock is anchored bottom-right, so dragging
@@ -116,6 +121,13 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
     });
   }
 
+  if (min) {
+    return (
+      <button onClick={() => setMinPersisted(false)} aria-label="Open Ask Clayco chat" title="Ask Clayco"
+        className="fixed right-3 bottom-3 z-50 w-10 h-10 grid place-items-center rounded-full bg-[#0d1218]/95 border border-white/15 text-amber-300 shadow-lg hover:bg-white/10">✦</button>
+    );
+  }
+
   return (
     <div className="fixed right-3 bottom-3 z-50 max-w-[calc(100vw-1.5rem)]" style={{ width: open ? size.w : 320 }}>
       {open && (
@@ -124,10 +136,10 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
             {/* drag-to-resize grip (dock is anchored bottom-right, so drag up/left to grow) */}
             <span onPointerDown={startResize} title="Drag to resize" aria-label="Resize chat"
               className="cursor-nwse-resize text-white/30 hover:text-white/60 select-none text-xs leading-none -ml-0.5">⤡</span>
-            <span className="text-xs text-white/50 mr-auto">Ask Clayco {focus ? `· ${focus.code || focus.name}` : ""}</span>
+            <h2 className="text-xs text-white/50 mr-auto font-normal">Ask Clayco {focus ? `· ${focus.code || focus.name}` : ""}</h2>
             <div className="flex items-center gap-2">
               <button onClick={toggleExpand} aria-label="Expand or shrink chat" title="Expand / shrink" className="text-white/30 hover:text-white/70 text-xs">{size.w >= LARGE_SIZE.w - 1 ? "🗗" : "⤢"}</button>
-              <button onClick={() => setOpen(false)} aria-label="Collapse chat" className="text-white/30 hover:text-white/70 text-xs">▾</button>
+              <button onClick={() => setOpen(false)} aria-label="Collapse chat" title="Collapse" className="text-white/30 hover:text-white/70 text-xs">▾</button>
             </div>
           </div>
           <div ref={scrollRef} className="flex-1 overflow-auto px-3 pb-3">
@@ -155,6 +167,8 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
           placeholder={focus ? `Ask about ${focus.code || focus.name}…` : "Ask a question about Clayco…"}
           className="flex-1 bg-[#0d1218]/95 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:border-amber-500/40 shadow-lg" />
         <button onClick={send} disabled={busy} aria-label="Send" className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 text-xs hover:bg-amber-500/30 disabled:opacity-40 shadow-lg">→</button>
+        <button onClick={hide} aria-label="Hide chat" title="Hide chat — it becomes a ✦ button"
+          className="px-2 py-2 rounded-lg bg-[#0d1218]/95 border border-white/10 text-white/40 text-xs hover:text-white/80 shadow-lg">–</button>
       </div>
     </div>
   );

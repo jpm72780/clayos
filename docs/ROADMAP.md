@@ -131,6 +131,27 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [x] Evals: focus-set support in harness; goldens updated for the 200-project landscape (6/6 live)
 - [ ] Cluster expand-on-zoom LOD (next scale step if entity count grows past ~8-10k)
 
+## Phase 2.10 — External site-audit response (session 8, 2026-07-15) — SHIPPED LIVE
+- [x] C1 — 2D story at scale: height-locked readable scale + horizontal scroll + stage jump-chips
+      (was fit-scaled to ~4% by `preserveAspectRatio` at a 31.7k-unit viewBox)
+- [x] C2 — Network freeze: FA2 → web-worker supervisor (inferSettings, circular seed, settle badge,
+      stop timer); Sigma waits for container width + `allowInvalidContainer`
+- [x] H4 — semantic heading hierarchy (h1 brand → h2 sections → h3 cards/rails; visuals unchanged)
+- [x] H5 — remaining unlabeled controls: `Field` → real `<label>`, slider `aria-label`s,
+      lite/drift `aria-pressed`
+- [x] M6 — shared currency formatter (`lib/format.js`, $B/$M/$K tiers) across all views
+- [x] M7 — chat dock minimizes to ✦ pill (persisted) + Data/Analytics bottom clearance
+- [x] M8 — `chartColor()` semantic chart palette follows the colorblind pref (Okabe-Ito pairs);
+      `prefers-contrast: more` auto-enables higher contrast on first load
+- [x] L9 — meta description/OG/twitter/theme-color + robots **noindex** + proper title
+- [x] L10 — code-splitting: all views lazy (entry 1.19MB → 596KB; recharts + sigma own chunks)
+- [x] L11 — skip-to-content link
+- [x] Verified headless 18/19 (stall-threshold artifact on software GL; isolated probes ~800ms),
+      0 page/console errors; deployed + prod cache-busted check
+- Audit items NOT taken: "gate to desktop" (responsive already exists — audit's breakpoint count was
+  wrong); "colorblind palette on by default" (kept opt-in; charts now honor it and prefers-contrast
+  auto-applies contrast)
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [x] Agent eval set (golden Q→A) — `evals/`

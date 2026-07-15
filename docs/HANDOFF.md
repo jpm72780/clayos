@@ -3,8 +3,28 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-14 (session 7 — 200-project portfolio + orbital 3D, LIVE)
+**Last updated:** 2026-07-15 (session 8 — external site-audit response, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 8 — site-audit response (read this first)
+John handed over an external audit (2 critical / 3 high / 3 medium / 3 low). **All actionable items
+fixed + shipped live** (bundle `index-CIa0aMex.js`, prod verified; details in PROGRESS_LOG):
+
+- **2D story fixed** (was a ~4% fit-scaled sliver at 200 projects): height-locked scale in a
+  horizontal scroller + stage jump-chips. **Network freeze fixed**: FA2 moved to the
+  graphology **web-worker supervisor** (+ Sigma waits for container width; `allowInvalidContainer`).
+- Semantic headings (h1→h2→h3) · real `<label>`s + slider `aria-label`s · shared `lib/format.js`
+  currency ($92.2B not $92171.5M) · chat dock minimizes to a ✦ pill + content clearance ·
+  `chartColor()` makes Analytics honor the colorblind palette + `prefers-contrast` auto-contrast ·
+  meta/OG/theme-color/**noindex** + new title · skip-link · **all views lazy** (entry 1.19MB→596KB).
+- **Audit corrections worth remembering:** responsive breakpoints DO exist (8 width media queries in
+  the compiled CSS — auditor missed the built stylesheet); network view is WebGL canvas, not SVG;
+  the 2D-story bug was fit-scaling, not overflow clipping.
+- **New box gotcha:** headless WebGL needs `--enable-unsafe-swiftshader` (NOT `--use-gl=swiftshader`,
+  which disables GL → 3D crashes into the root ErrorBoundary → blank app). Poll up to ~30s for the
+  2D/Network views — the 6k-row subgraph fetch on the micro instance can exceed 5s.
 
 ---
 
@@ -277,8 +297,10 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
 - **RLS enable-path** — scaffolding is migration 012; verify the anon read path before enabling.
 - **kg_entity_facts pagination follow-up** — `fetchAllRpc` handles it client-side now; consider raising
   the function cap server-side instead.
-- **Polish backlog** — semantic search in the UI (#11), code-splitting the two ~1.4 MB chunks,
-  graph node-by-node keyboard cycling, network-graph LOD (all deferred, none blocking).
+- **Polish backlog** — semantic search in the UI (#11), graph node-by-node keyboard cycling,
+  network-graph LOD (all deferred, none blocking). ~~Code-splitting~~ done in session 8 (all views
+  lazy; entry chunk 596 KB). Consider a fit/scroll toggle or minimap for the 2D story if John wants
+  the full-portfolio "bell" overview back.
 
 ## Backlog (original Phase 2 — widen + deepen)
 

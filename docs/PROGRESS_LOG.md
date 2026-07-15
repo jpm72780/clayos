@@ -5,6 +5,63 @@
 
 ---
 
+## 2026-07-15 — Session 8 (Fable 5): external site-audit response — LIVE
+
+**Context.** John handed over a detailed external audit of clayos.pages.dev (2 critical, 3 high,
+3 medium, 3 low + polish). Everything actionable fixed in one pass and shipped live.
+
+**Critical fixes:**
+- **2D story unusable at 200 projects** — root cause corrected vs the audit: not overflow clipping
+  but `preserveAspectRatio="meet"` fit-scaling a 31.7k-unit-wide viewBox to ~4% (a sliver). Now
+  renders height-locked at readable scale inside an `overflow-x-auto` scroller (min-width = container
+  → small/filtered portfolios still fit like before), with stage **jump-to chips** + keyboard-scrollable
+  container. Verified: svg 26,757×843px, 6,000 circles, 15px labels, 4 stage chips.
+- **Network view froze the main thread** — the synchronous `forceAtlas2.assign` (120 iters × 6k nodes)
+  is now the **FA2 web-worker supervisor** (`graphology-layout-forceatlas2/worker`, `inferSettings`),
+  circular seed, "settling layout…" badge, stop timer ~6s, kill on unmount. Bonus hardening: Sigma
+  creation waits a frame until the container has width (kills a "Container has no width" race on
+  fast tab transitions) + `allowInvalidContainer`. Verified: max main-thread stall ~750–870ms on
+  **software** WebGL (real GPUs far lower) vs >5s deterministic lock before.
+
+**High/medium/low:**
+- **Semantic headings** (audit had zero h1–h6 right): h1 Clayco → h2 sections/view titles → h3
+  cards/rails, styling unchanged (Tailwind preflight makes headings inherit).
+- **Form labels**: `Field` in both ontology rails is now a real `<label>` wrapper; the 4 flow-panel
+  sliders got `aria-label`s; lite/drift toggles got `aria-label` + `aria-pressed`.
+- **Currency**: shared `lib/format.js fmtMoney` ($92.2B / $421M / $87K tiers) replaces three
+  divergent per-view `fmt$`s — no more `$92171.5M`.
+- **Chat dock**: fully-minimizable to a ✦ pill (persisted `clayos.ask.min`; chart "✦ ask" un-minimizes);
+  Data/Analytics got bottom scroll clearance so last rows/charts clear the dock.
+- **Colorblind palette now reaches charts**: semantic chart colors (`chartColor()` in palette.js —
+  CPI/SPI good/bad, BAC/EAC, WIP over/under, RFI, TRIR, trend lines) swap to Okabe-Ito pairs with the
+  pref; `prefers-contrast: more` auto-enables higher-contrast when no stored pref.
+- **Meta**: description + OG + twitter card + theme-color + **robots noindex** (POC wearing a real
+  firm's name — link previews yes, search indexing no); title "ClayOS — Clayco portfolio intelligence".
+- **Skip-to-content link** + `main id`.
+- **Code-splitting**: all 4 remaining views lazy — entry chunk 1.19MB → 596KB; recharts (407KB) and
+  sigma/graphology (185KB) now load only when their tab opens.
+
+**Audit claims corrected (for the record):** (a) "zero width-based breakpoints" is false — the
+compiled Tailwind CSS has 8 width media queries and the session-5 phone drawers work; the auditor
+likely counted runtime `<style>` tags only. Verified again: no page-level horizontal overflow at
+390px. (b) "8 of 10 controls unlabeled" — the real gaps were the 4 sliders + rail selects, now fixed.
+(c) Network "6,000 SVG nodes" — Sigma renders to WebGL canvas; the freeze was layout, not SVG.
+
+**Verified:** headless suite 18/19 (the one miss is a stall-threshold artifact of software-GL +
+teardown contention; isolated probes pass at ~800ms). 0 page errors, 0 console errors. Deployed +
+prod cache-busted check: new bundle `index-CIa0aMex.js`, HTTP 200, new title/meta live.
+
+**Gotcha discovered:** headless chromium here needs `--enable-unsafe-swiftshader` for WebGL;
+`--use-gl=swiftshader` (the old flag) leaves GL disabled → the 3D view crashes into the root
+ErrorBoundary and the whole app renders blank. Verify scripts should also poll for the 2D/network
+views (subgraph fetch on micro can exceed 5s).
+
+**Next:** unchanged from session 7 (pg_cron, CI deploy, RLS enable-path, kg_entity_facts cap) —
+plus consider a fit/scroll toggle or minimap for the 2D story if John wants the "bell" overview back
+at full-portfolio scale.
+
+---
+
 ## 2026-07-14 — Session 7 (Fable 5): 200-project portfolio + orbital 3D layout — LIVE
 
 **Context.** John: get the UX right at real scale — 200 projects — before Snowflake. Direction:

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { subgraph, entityDetail, classificationCodes, entityClassMap } from "../lib/api.js";
 import { colorFor, TYPE_COLOR } from "../lib/palette.js";
 
@@ -200,6 +200,22 @@ export default function LifecycleView({ businessUnit }) {
   const [selected, setSelected] = useState(null);
   const [hl, setHl] = useState(null);              // { dim, value, label, depth }
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  // At portfolio scale the story is far wider than the screen (200 projects side by
+  // side). Render it at a readable, height-locked scale and let it scroll left→right —
+  // scaling the whole thing to fit shrinks it to an invisible sliver.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let killed = false;
@@ -267,11 +283,19 @@ export default function LifecycleView({ businessUnit }) {
     return hot.set.has(id) ? { op: 1, r: baseR + 0.9 } : { op: 0.06, r: baseR };
   };
 
+  const scale = box.h > 0 ? box.h / VH : 0;
+  const svgW = L && scale ? Math.max(box.w, Math.round(L.VW * scale)) : 0;
+  const scrollable = !!L && svgW > box.w + 2;
+  const jumpTo = (b) => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ left: Math.max(0, b.x0 * scale - 40), behavior: "smooth" });
+  };
+
   return (
     <div className="h-full flex">
       {/* ── Highlight-by rail ───────────────────────────────────────────── */}
       <aside className="w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14]">
-        <div className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</div>
+        <h3 className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</h3>
         <div className="text-white/35 text-[11px] mb-3 leading-snug">Light up the keys that carry data <em>between</em> systems — across every project at once.</div>
 
         <Field label="MasterFormat · CSI code">
@@ -314,7 +338,7 @@ export default function LifecycleView({ businessUnit }) {
           </button>
         )}
 
-        <div className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Entity types</div>
+        <h3 className="text-white/40 text-[10px] uppercase tracking-wide mt-5 mb-1">Entity types</h3>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5">
           {Object.keys(TYPE_COLOR).map((t) => (
             <div key={t} className="flex items-center gap-1 text-[10px] text-white/55">
@@ -328,11 +352,21 @@ export default function LifecycleView({ businessUnit }) {
       {/* ── Story map ───────────────────────────────────────────────────── */}
       <div className="relative flex-1 min-w-0 overflow-hidden">
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
-          <div className="text-sm text-white/80 font-medium">The Clayco data environment, read left → right along the project lifecycle.</div>
+          <h2 className="text-sm text-white/80 font-medium">The Clayco data environment, read left → right along the project lifecycle.</h2>
           <div className="text-xs text-white/45 mt-0.5 max-w-3xl">
             Each mound is a project, sized by the data it has accumulated — the portfolio peaks in construction (the bell).
             The lane below is the enterprise backbone: people, orgs, IT, pipeline that run the business but barely touch any one project.
           </div>
+          {scrollable && (
+            <div className="mt-2 flex flex-wrap items-center gap-1 pointer-events-auto">
+              <span className="text-[10px] uppercase tracking-wide text-white/35 mr-1">Jump to</span>
+              {L.brackets.map((b, i) => (
+                <button key={i} onClick={() => jumpTo(b)}
+                  className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-white/60 hover:text-white hover:bg-white/10">{b.label}</button>
+              ))}
+              <span className="text-[11px] text-white/35 ml-1">⟷ or scroll sideways</span>
+            </div>
+          )}
           {hl && hot && (
             <div className="mt-2 inline-block bg-amber-500/15 text-amber-200 text-xs rounded px-2 py-1 pointer-events-auto">
               Highlighting <b>{SYSTEM_LABEL[hl.dim] || (hl.dim === "vendor" ? "Vendor" : "Employee")}</b> · {hl.label}
@@ -343,8 +377,10 @@ export default function LifecycleView({ businessUnit }) {
 
         {loading && <div className="absolute inset-0 grid place-items-center text-white/50 text-sm">loading ontology…</div>}
 
-        {L && (
-          <svg viewBox={`0 0 ${L.VW} ${VH}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        <div ref={scrollRef} tabIndex={0} aria-label="Lifecycle story map — scrolls horizontally"
+          className="absolute inset-0 overflow-x-auto overflow-y-hidden focus:outline-none">
+        {L && box.h > 0 && (
+          <svg viewBox={`0 0 ${L.VW} ${VH}`} width={svgW} height={box.h} preserveAspectRatio="xMidYMid meet">
             <defs>
               <linearGradient id="bell" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.16" />
@@ -428,6 +464,7 @@ export default function LifecycleView({ businessUnit }) {
             </g>
           </svg>
         )}
+        </div>
       </div>
 
       {/* ── Detail rail ─────────────────────────────────────────────────── */}
@@ -441,7 +478,7 @@ export default function LifecycleView({ businessUnit }) {
                 <span className="text-xs text-white/50">{selected.entity.entity_type} · {selected.entity.domain}</span>
               </div>
               <div className="text-base font-semibold mb-3">{selected.entity.label}</div>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Record · {selected.entity.source_table}</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Record · {selected.entity.source_table}</h3>
               <table className="w-full text-xs mb-4">
                 <tbody>
                   {Object.entries(selected.record || {}).filter(([k]) => k !== "id").slice(0, 24).map(([k, v]) => (
@@ -452,7 +489,7 @@ export default function LifecycleView({ businessUnit }) {
                   ))}
                 </tbody>
               </table>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Connected ({(selected.neighbors.nodes || []).length - 1})</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Connected ({(selected.neighbors.nodes || []).length - 1})</h3>
               <div className="space-y-1">
                 {(selected.neighbors.nodes || []).filter((n) => n.id !== selected.entity.id).slice(0, 30).map((n) => (
                   <div key={n.id} className="flex items-center gap-2 text-white/70">
@@ -471,10 +508,11 @@ export default function LifecycleView({ businessUnit }) {
 }
 
 function Field({ label, children }) {
+  // a real <label> wrapper so the select inside is programmatically named
   return (
-    <div className="mb-3">
-      <div className="text-white/55 text-[11px] mb-1">{label}</div>
+    <label className="block mb-3">
+      <span className="block text-white/55 text-[11px] mb-1">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

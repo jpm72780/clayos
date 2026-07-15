@@ -1,16 +1,18 @@
 import { useEffect, useState, lazy, Suspense } from "react";
 import { listBusinessUnits, projectsLite, dataHealth } from "./lib/api.js";
-import GraphView from "./views/GraphView.jsx";
-import LifecycleView from "./views/LifecycleView.jsx";
-import DataView from "./views/DataView.jsx";
-import DashboardView from "./views/DashboardView.jsx";
 import AskDock from "./components/AskDock.jsx";
 import HelpModal from "./components/HelpModal.jsx";
 import { ShimmerStyle } from "./components/Skeleton.jsx";
 import { loadPrefs, savePrefs } from "./lib/prefs.js";
 import { setPalette } from "./lib/palette.js";
 
+// Every view is its own chunk — three.js, sigma/graphology, and recharts only
+// download when their tab/mode is first opened.
 const Lifecycle3DView = lazy(() => import("./views/Lifecycle3DView.jsx"));
+const LifecycleView = lazy(() => import("./views/LifecycleView.jsx"));
+const GraphView = lazy(() => import("./views/GraphView.jsx"));
+const DataView = lazy(() => import("./views/DataView.jsx"));
+const DashboardView = lazy(() => import("./views/DashboardView.jsx"));
 
 const TABS = [
   { id: "graph", label: "Clayco Ontology" },
@@ -68,8 +70,11 @@ export default function App() {
   return (
     <div className={`h-full flex flex-col overflow-x-hidden${prefs.contrast ? " cl-contrast" : ""}`}>
       <ShimmerStyle />
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:bg-amber-400 focus:text-black focus:px-3 focus:py-1.5 focus:rounded-md focus:text-sm">
+        Skip to content
+      </a>
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 md:px-5 border-b border-white/10 bg-[#0d1218]">
-        <span className="text-lg font-semibold tracking-tight text-amber-300/90">Clayco</span>
+        <h1 className="text-lg font-semibold tracking-tight text-amber-300/90">Clayco</h1>
         <nav className="flex gap-1 ml-1">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
@@ -123,16 +128,16 @@ export default function App() {
           <span className="ml-auto text-white/35">Scope: <span className="text-white/55">{scopeLabel(focus, hl)}</span></span>
         </div>
       )}
-      <main className="flex-1 min-h-0" key={prefsRev}>
-        {tab === "graph" && ontoMode === "3d" && (
-          <Suspense fallback={<div className="h-full grid place-items-center text-white/50 text-sm">loading 3D…</div>}>
+      <main id="main" className="flex-1 min-h-0" key={prefsRev}>
+        <Suspense fallback={<div className="h-full grid place-items-center text-white/50 text-sm">loading view…</div>}>
+          {tab === "graph" && ontoMode === "3d" && (
             <Lifecycle3DView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} />
-          </Suspense>
-        )}
-        {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
-        {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
-        {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
-        {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} onAsk={setAskSeed} />}
+          )}
+          {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
+          {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
+          {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
+          {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} onAsk={setAskSeed} />}
+        </Suspense>
       </main>
       <AskDock projects={projects} focus={focus} setFocus={setFocus} setHl={setHl} goToOntology={() => setTab("graph")} seed={askSeed} onSeedConsumed={() => setAskSeed(null)} />
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { allEntities, listBusinessUnits, projectsLite, entityFacts, classificationCodes, entityDetail, neighbors } from "../lib/api.js";
 import { colorFor, shapeFor } from "../lib/palette.js";
+import { fmtMoney } from "../lib/format.js";
 import { SkeletonTable } from "../components/Skeleton.jsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const COLS = [
 ];
 const TYPES_WITH_STATUS = ["RFI", "Submittal", "Contract", "PayApp", "QualityEvent", "Requisition", "Pursuit"];
 
-const fmt$ = (n) => (n == null ? "" : "$" + (Math.abs(Number(n)) >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1e3).toFixed(0) + "K"));
+const fmt$ = (n) => fmtMoney(n, { dash: "" });
 const fmtDate = (s) => (s ? new Date(s).toISOString().slice(0, 10) : "");
 const daysAgo = (s) => (s ? (Date.now() - new Date(s).getTime()) / 8.64e7 : Infinity);
 
@@ -177,7 +178,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* by domain */}
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">By domain</div>
+                <h3 className="text-[10px] uppercase tracking-wide text-white/40 mb-1">By domain</h3>
                 <div className="space-y-1">
                   {stats.byDomain.map(([d, c]) => (
                     <div key={d} className="flex items-center gap-2 text-xs">
@@ -190,7 +191,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
               </div>
               {/* by type */}
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">By type</div>
+                <h3 className="text-[10px] uppercase tracking-wide text-white/40 mb-1">By type</h3>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                   {stats.byType.map(([t, v]) => (
                     <button key={t} onClick={() => setTypeF(typeF === t ? "" : t)} className={`flex items-center gap-1.5 text-xs text-left hover:text-white ${typeF === t ? "text-amber-300" : "text-white/70"}`}>
@@ -203,7 +204,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
               </div>
               {/* status deep-dives */}
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Status / disposition</div>
+                <h3 className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Status / disposition</h3>
                 <div className="flex flex-wrap gap-2">
                   {stats.statusByType.length === 0 && <div className="text-xs text-white/30">— no status fields in view —</div>}
                   {stats.statusByType.map(([t, sm]) => (
@@ -223,7 +224,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
         )}
 
         {/* table */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto pb-14">
           {!ents ? <SkeletonTable /> : (
             <table className="w-full text-sm border-collapse max-md:min-w-[880px]" aria-label="Clayco entities">
               <thead className="sticky top-0 bg-[#0b0f14] z-10">
@@ -274,13 +275,13 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
               </div>
               <div className="flex items-center gap-2 mb-1"><span className="w-3 h-3 rounded-full" style={{ background: colorFor(selected.entity.entity_type) }} /><span className="text-xs text-white/50">{selected.entity.entity_type} · {selected.entity.domain}</span></div>
               <div className="text-base font-semibold mb-3">{selected.entity.label}</div>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Record · {selected.entity.source_table}</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Record · {selected.entity.source_table}</h3>
               <table className="w-full text-xs mb-4"><tbody>
                 {Object.entries(selected.record || {}).filter(([k]) => k !== "id").slice(0, 28).map(([k, v]) => (
                   <tr key={k} className="border-b border-white/5"><td className="py-1 pr-2 text-white/40 align-top">{k}</td><td className="py-1 text-white/80 break-words">{v === null ? "—" : String(v)}</td></tr>
                 ))}
               </tbody></table>
-              <div className="text-white/40 text-xs uppercase tracking-wide mb-1">Connected ({(selected.neighbors.nodes || []).length - 1})</div>
+              <h3 className="text-white/40 text-xs uppercase tracking-wide mb-1 font-normal">Connected ({(selected.neighbors.nodes || []).length - 1})</h3>
               <div className="space-y-1">
                 {(selected.neighbors.nodes || []).filter((n) => n.id !== selected.entity.id).slice(0, 30).map((n) => (
                   <div key={n.id} className="flex items-center gap-2 text-white/70"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorFor(n.type) }} /><span className="truncate">{n.label}</span><span className="text-white/30 text-[10px] ml-auto shrink-0">{n.type}</span></div>
