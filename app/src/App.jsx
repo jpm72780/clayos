@@ -66,6 +66,22 @@ export default function App() {
   useEffect(() => {
     try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode })))); } catch { /* noop */ }
   }, [tab, ontoMode]);
+  // a pasted/edited hash after load re-routes too (replaceState above never fires this,
+  // so there is no feedback loop) — same honored-on-arrival semantics as the initial hash
+  useEffect(() => {
+    const onHash = () => {
+      try {
+        const h = location.hash.slice(1); if (!h) return;
+        const v = JSON.parse(decodeURIComponent(atob(h)));
+        if (v.tab) setTab(v.tab);
+        if (v.ontoMode) setOntoMode(v.ontoMode);
+        if (v.focus) setFocus(v.focus);
+        if (v.hl) setHl(v.hl);
+      } catch { /* malformed hash — ignore */ }
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   return (
     <div className={`h-full flex flex-col overflow-x-hidden${prefs.contrast ? " cl-contrast" : ""}`}>
@@ -78,7 +94,7 @@ export default function App() {
         <nav className="flex gap-1 ml-1">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`px-3 py-1.5 rounded-md text-sm transition ${
+              className={`px-3 py-1.5 max-md:py-3 rounded-md text-sm transition ${
                 tab === t.id ? "bg-amber-500/20 text-amber-300" : "text-white/60 hover:text-white hover:bg-white/5"
               }`}>{t.label}</button>
           ))}
@@ -87,7 +103,7 @@ export default function App() {
           <div className="flex items-center gap-1 ml-2 bg-white/5 rounded-md p-0.5">
             {[{ id: "3d", label: "3D" }, { id: "lifecycle", label: "2D story" }, { id: "network", label: "Network" }].map((m) => (
               <button key={m.id} onClick={() => setOntoMode(m.id)}
-                className={`px-2.5 py-1 rounded text-xs transition ${
+                className={`px-2.5 py-1 max-md:px-3.5 max-md:py-3 rounded text-xs transition ${
                   ontoMode === m.id ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
                 }`}>{m.label}</button>
             ))}
@@ -96,7 +112,7 @@ export default function App() {
         <div className="ml-auto flex items-center gap-2">
           <label htmlFor="bu-select" className="text-xs text-white/40 max-md:hidden">Business unit</label>
           <select id="bu-select" aria-label="Filter by business unit" value={bu || ""} onChange={(e) => setBu(e.target.value || null)}
-            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm min-w-0 max-md:max-w-[10rem]">
+            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 max-md:py-2.5 text-sm min-w-0 max-md:max-w-[10rem]">
             <option value="">All Clayco</option>
             {bus.filter((b) => b.kind !== "enterprise").map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -104,11 +120,11 @@ export default function App() {
           </select>
           <div className="relative">
             <button onClick={() => setMenu((v) => !v)} aria-label="Display preferences" title="Display preferences"
-              className="w-7 h-7 grid place-items-center rounded-md text-white/50 hover:text-white hover:bg-white/5 text-sm">⚙</button>
+              className="w-7 h-7 max-md:w-11 max-md:h-11 grid place-items-center rounded-md text-white/50 hover:text-white hover:bg-white/5 text-sm">⚙</button>
             {menu && <DisplayMenu prefs={prefs} update={updatePrefs} onClose={() => setMenu(false)} />}
           </div>
           <button onClick={() => setHelp(true)} aria-label="What am I looking at?" title="What am I looking at?"
-            className="w-7 h-7 grid place-items-center rounded-md border border-white/15 text-white/50 hover:text-white hover:bg-white/5 text-xs font-semibold">?</button>
+            className="w-7 h-7 max-md:w-11 max-md:h-11 grid place-items-center rounded-md border border-white/15 text-white/50 hover:text-white hover:bg-white/5 text-xs font-semibold">?</button>
         </div>
       </header>
       {help && <HelpModal topic={tab} onClose={() => setHelp(false)} />}

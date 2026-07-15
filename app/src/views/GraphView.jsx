@@ -64,9 +64,13 @@ export default function GraphView({ businessUnit }) {
         if (!el.clientWidth) { requestAnimationFrame(mount); return; }
 
         if (sigmaRef.current) { sigmaRef.current.kill(); sigmaRef.current = null; }
+        // small screens: labels only past a higher zoom threshold and at lower density —
+        // 6k node labels at 400px wide are pure soup otherwise
+        const small = el.clientWidth < 640;
         const s = new Sigma(g, el, {
           labelColor: { color: "#cbd5e1" }, labelSize: 11, defaultEdgeColor: "#1f2733",
-          labelRenderedSizeThreshold: 8, renderEdgeLabels: false, allowInvalidContainer: true,
+          labelRenderedSizeThreshold: small ? 14 : 8, renderEdgeLabels: false, allowInvalidContainer: true,
+          labelDensity: small ? 0.5 : 1, labelGridCellSize: small ? 180 : 100,
         });
         sigmaRef.current = s;
         s.on("clickNode", async ({ node }) => {
@@ -116,7 +120,7 @@ export default function GraphView({ businessUnit }) {
     <div className="h-full flex flex-col md:flex-row">
       {/* mobile-only toolbar: open the filters drawer + show counts */}
       <div className="md:hidden shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/10 bg-[#0b0f14]">
-        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-2 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Filters</button>
+        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-3 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Filters</button>
         <span className="text-xs text-white/45">{loading ? "loading graph…" : `${stats.nodes} nodes · ${stats.edges} edges${layingOut ? " · settling layout…" : ""}`}</span>
       </div>
       {/* drawer backdrop (mobile) */}
@@ -125,7 +129,7 @@ export default function GraphView({ businessUnit }) {
       <aside className={`w-56 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14] md:static md:block
         max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-64 max-md:max-w-[85vw] max-md:shadow-2xl
         ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
-        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 text-xs text-white/45 hover:text-white/80">✕ close</button>
+        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 py-2 text-xs text-white/45 hover:text-white/80">✕ close</button>
         <h3 className="text-white/40 text-xs uppercase tracking-wide mb-2">Domains</h3>
         <div className="space-y-1">
           {DOMAINS.map((d) => (

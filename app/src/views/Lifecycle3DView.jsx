@@ -16,6 +16,16 @@ import { loadPrefs } from "../lib/prefs.js";
 // literal-labels preference: read once per mount (App remounts the view on change)
 const LITERAL = () => loadPrefs().literal;
 
+// Small/coarse-pointer devices get a perf budget: lite quality by default, lower DPR,
+// sampled child nodes and fewer label sprites. Full quality stays one toggle away.
+// (Mobile audit 2026-07-15: full scene at 400px/DPR2 ran ~6 fps and blocked input.)
+const MOBILE_PERF = () => {
+  try { return window.innerWidth < 768 || (window.matchMedia("(pointer: coarse)").matches && window.innerWidth < 1024); }
+  catch { return false; }
+};
+const MOBILE_NODE_BUDGET = 1800; // child dots across all globes (globe sizes stay data-true)
+const MOBILE_LABEL_CAP = 20;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ClayOS — one interface.
 // The ontology is the centerpiece: projects are interwoven VASCULAR SYSTEMS —
@@ -89,7 +99,7 @@ function spherePoint(k, n) {
   return { x: Math.cos(th) * rad * r, y: y * r, z: Math.sin(th) * rad * r };
 }
 
-function buildClusters(model, heatByPid) {
+function buildClusters(model, heatByPid, labelCap = 48) {
   const { projects, backbone } = model;
   const pos = new Map(), meta = new Map(), clusters = [], labels = [];
   const buIds = [...new Set(projects.map((p) => p.bu))].sort();
@@ -128,7 +138,7 @@ function buildClusters(model, heatByPid) {
 
   // labels: 200 chips is noise — label the hot core + the biggest peripherals only
   const labeled = clusters.filter((c) => c.kind === "project")
-    .sort((a, b) => (b.heat + b.count / 400) - (a.heat + a.count / 400)).slice(0, 48);
+    .sort((a, b) => (b.heat + b.count / 400) - (a.heat + a.count / 400)).slice(0, labelCap);
   for (const c of labeled) {
     labels.push({ text: c.label, x: c.center.x, y: c.center.y + c.radius + 24, z: c.center.z,
                   color: "#fde68a", size: 12, heat: c.heat });
@@ -207,8 +217,10 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   // honor prefers-reduced-motion: the drifting auto-orbit can bother vestibular users
   const [spin, setSpin] = useState(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } });
   // "lite" mode = no bloom, no flow particles, lower node resolution — for weak GPUs.
-  // Toggled manually or auto-enabled once if the opening seconds run below ~25 fps.
-  const [lite, setLite] = useState(false);
+  // Defaults ON for the mobile perf budget; toggled manually or auto-enabled once if
+  // the opening seconds run below ~25 fps.
+  const [mobilePerf] = useState(MOBILE_PERF);
+  const [lite, setLite] = useState(mobilePerf);
   const liteRef = useRef(false); useEffect(() => { liteRef.current = lite; }, [lite]);
   // flow controls (recent-activity particles) — speed defaults to minimum, size range
   // starts where the old maximum was (user wants pulses big)
@@ -216,6 +228,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   const [flowSpeed, setFlowSpeed] = useState(0.001);
   const [flowSize, setFlowSize] = useState(3.0);
   const [fadeAmt, setFadeAmt] = useState(0.8);  // 0 = no periphery fade · ~1 = periphery vanishes
+  // the flow panel covers most of a phone canvas — start it collapsed there
+  const [flowOpen, setFlowOpen] = useState(() => !MOBILE_PERF());
 
   useEffect(() => {
     let killed = false; setLoading(true);
@@ -252,7 +266,26 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       }
       heatByPid.set(p.pid, h);
     }
-    const { pos, meta, clusters, labels, axis, centroid } = buildClusters(model, heatByPid);
+    // Mobile budget: sample each globe's child dots down to ~MOBILE_NODE_BUDGET total.
+    // Heat (above) is computed over the FULL kid set and `count` is untouched, so globe
+    // sizes and orbit radii stay data-true — only the dot density inside drops.
+    let layoutModel = model;
+    if (mobilePerf) {
+      const total = model.projects.reduce((a, p) => a + p.kids.length, 0);
+      if (total > MOBILE_NODE_BUDGET) {
+        const ratio = MOBILE_NODE_BUDGET / total;
+        layoutModel = {
+          ...model,
+          projects: model.projects.map((p) => {
+            const keep = Math.max(4, Math.round(p.kids.length * ratio));
+            if (keep >= p.kids.length) return p;
+            const step = p.kids.length / keep;
+            return { ...p, kids: Array.from({ length: keep }, (_, i) => p.kids[Math.floor(i * step)]) };
+          }),
+        };
+      }
+    }
+    const { pos, meta, clusters, labels, axis, centroid } = buildClusters(layoutModel, heatByPid, mobilePerf ? MOBILE_LABEL_CAP : 48);
     const nodes = []; const cidById = new Map(); const recById = new Map(); const amtById = new Map(); const typeById = new Map();
     for (const [id, p] of pos) {
       const m = meta.get(id);
@@ -274,7 +307,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         };
       });
     return { nodes, links, clusters, labels, axis, centroid };
-  }, [model, data, facts]);
+  }, [model, data, facts, mobilePerf]);
 
   const hot = useMemo(() => {
     if (!model || !hl) return null;
@@ -459,7 +492,8 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
     fgRef.current = g;
     // clamp DPR so high-density phones don't over-allocate the WebGL backing store
-    try { g.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); } catch { /* noop */ }
+    // (mobile budget clamps harder — fill rate dominates on phone GPUs)
+    try { g.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, mobilePerf ? 1.25 : 2)); } catch { /* noop */ }
     if (focus?.pid) flyTo(focus.pid); // mounted with a project already focused (e.g. from Data/Ask)
     // resize the renderer to the *container* (not just the window) so mobile stacking,
     // the filters drawer, and orientation changes all re-fit the canvas instead of
@@ -527,7 +561,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
     <div className="h-full flex flex-col md:flex-row">
       {/* mobile-only toolbar: open the highlight/filters drawer */}
       <div className="md:hidden shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/10 bg-[#0b0f14]">
-        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-2 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Highlight / filters</button>
+        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-3 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Highlight / filters</button>
         {hl && <span className="text-xs text-amber-200/80 truncate">{hl.label}</span>}
       </div>
       {/* drawer backdrop (mobile) */}
@@ -536,7 +570,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       <aside className={`w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14] md:static md:block
         max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:max-w-[85vw] max-md:shadow-2xl
         ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
-        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 text-xs text-white/45 hover:text-white/80">✕ close</button>
+        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 py-2 text-xs text-white/45 hover:text-white/80">✕ close</button>
         <h3 className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</h3>
         <div className="text-white/35 text-[11px] mb-3 leading-snug">Light up the keys that carry data <em>between</em> systems — across every project at once.</div>
         <Field label="MasterFormat · CSI code">
@@ -599,15 +633,24 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
         <div className="absolute top-3 right-11 z-10 flex items-center gap-1.5">
           <button onClick={() => setLite((v) => !v)} aria-label="Toggle lite visual quality" aria-pressed={lite} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
-            className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{lite ? "○ lite" : "● full"}</button>
-          <button onClick={() => setSpin((s) => !s)} aria-label="Toggle camera drift" aria-pressed={spin} title="Camera drift — slow auto-orbit" className="text-[11px] px-2 py-1 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
+            className="text-[11px] px-2 py-1 max-md:px-3 max-md:py-2.5 rounded bg-black/40 text-white/60 hover:text-white">{lite ? "○ lite" : "● full"}</button>
+          <button onClick={() => setSpin((s) => !s)} aria-label="Toggle camera drift" aria-pressed={spin} title="Camera drift — slow auto-orbit" className="text-[11px] px-2 py-1 max-md:px-3 max-md:py-2.5 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
         </div>
 
         {/* flow controls — what's moving, how fast, how big */}
+        {!flowOpen && (
+          <button onClick={() => setFlowOpen(true)} aria-expanded="false"
+            className="absolute left-3 bottom-24 z-20 text-xs px-3 py-2.5 rounded-lg bg-[#0d1218]/90 border border-white/10 text-white/70 hover:text-white">
+            {literal ? "Activity" : "Flow"} · <span className="text-cyan-300/90">{activeCount} {literal ? "updated" : "moved"}</span> ▸
+          </button>
+        )}
+        {flowOpen && (
         <div className="absolute left-3 bottom-24 z-20 w-56 bg-[#0d1218]/90 border border-white/10 rounded-xl p-3 text-xs">
-          <div className="flex items-baseline justify-between mb-1">
+          <div className="flex items-baseline justify-between mb-1 gap-2">
             <span className="text-white/70 font-medium">{literal ? "Recent activity" : "Flow · recent activity"}</span>
-            <span className="text-cyan-300/90">{activeCount} {literal ? "updated" : "moved"}</span>
+            <span className="text-cyan-300/90 ml-auto">{activeCount} {literal ? "updated" : "moved"}</span>
+            <button onClick={() => setFlowOpen(false)} aria-label="Collapse flow controls"
+              className="text-white/40 hover:text-white/80 px-1 max-md:px-2 max-md:py-1">▾</button>
           </div>
           <label className="block text-white/45 text-[10px] mt-1">Active in the last <b className="text-white/70">{WINDOWS[windowIdx].label}</b></label>
           <input type="range" aria-label="Activity time window" min="0" max={WINDOWS.length - 1} step="1" value={windowIdx} onChange={(e) => setWindowIdx(+e.target.value)} className="cl-range" />
@@ -617,8 +660,9 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
           <input type="range" aria-label="Flow particle size" min="3" max="10" step="0.25" value={flowSize} onChange={(e) => setFlowSize(+e.target.value)} className="cl-range" />
           <label className="block text-white/45 text-[10px] mt-2">Periphery fade <span className="text-white/30">· dormant projects dim</span></label>
           <input type="range" aria-label="Periphery fade for dormant projects" min="0" max="0.95" step="0.05" value={fadeAmt} onChange={(e) => setFadeAmt(+e.target.value)} className="cl-range" />
-          <style>{`.cl-range{width:100%;accent-color:#38bdf8;height:3px}`}</style>
+          <style>{`.cl-range{width:100%;accent-color:#38bdf8;height:3px}@media (pointer:coarse){.cl-range{height:24px}}`}</style>
         </div>
+        )}
 
         {loading && <div className="absolute inset-0 grid place-items-center text-white/50 text-sm">loading ontology…</div>}
 

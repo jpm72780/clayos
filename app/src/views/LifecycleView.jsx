@@ -200,6 +200,7 @@ export default function LifecycleView({ businessUnit }) {
   const [selected, setSelected] = useState(null);
   const [hl, setHl] = useState(null);              // { dim, value, label, depth }
   const [loading, setLoading] = useState(true);
+  const [railOpen, setRailOpen] = useState(false); // mobile highlight/filters drawer
   const scrollRef = useRef(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
 
@@ -292,9 +293,20 @@ export default function LifecycleView({ businessUnit }) {
   };
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
+      {/* mobile-only toolbar: open the highlight drawer (the fixed rail was squeezing
+          the story into a ~160px column on phones) */}
+      <div className="md:hidden shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/10 bg-[#0b0f14]">
+        <button onClick={() => setRailOpen(true)} className="text-xs px-3 py-3 rounded bg-white/5 text-white/75 active:bg-white/10">☰ Highlight / filters</button>
+        {hl && <span className="text-xs text-amber-200/80 truncate">{hl.label}</span>}
+      </div>
+      {railOpen && <div className="md:hidden fixed inset-0 z-30 bg-black/50" onClick={() => setRailOpen(false)} />}
+
       {/* ── Highlight-by rail ───────────────────────────────────────────── */}
-      <aside className="w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14]">
+      <aside className={`w-60 shrink-0 border-r border-white/10 p-3 overflow-auto text-sm bg-[#0b0f14] md:static md:block
+        max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-72 max-md:max-w-[85vw] max-md:shadow-2xl
+        ${railOpen ? "max-md:block" : "max-md:hidden"}`}>
+        <button onClick={() => setRailOpen(false)} className="md:hidden mb-3 py-2 text-xs text-white/45 hover:text-white/80">✕ close</button>
         <h3 className="text-white/40 text-[10px] uppercase tracking-wide mb-1">Highlight by</h3>
         <div className="text-white/35 text-[11px] mb-3 leading-snug">Light up the keys that carry data <em>between</em> systems — across every project at once.</div>
 
@@ -350,7 +362,7 @@ export default function LifecycleView({ businessUnit }) {
       </aside>
 
       {/* ── Story map ───────────────────────────────────────────────────── */}
-      <div className="relative flex-1 min-w-0 overflow-hidden">
+      <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
         <div className="absolute top-3 left-4 right-4 z-10 pointer-events-none">
           <h2 className="text-sm text-white/80 font-medium">The Clayco data environment, read left → right along the project lifecycle.</h2>
           <div className="text-xs text-white/45 mt-0.5 max-w-3xl">
@@ -362,7 +374,7 @@ export default function LifecycleView({ businessUnit }) {
               <span className="text-[10px] uppercase tracking-wide text-white/35 mr-1">Jump to</span>
               {L.brackets.map((b, i) => (
                 <button key={i} onClick={() => jumpTo(b)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-white/60 hover:text-white hover:bg-white/10">{b.label}</button>
+                  className="text-[11px] px-2 py-0.5 max-md:py-2.5 max-md:px-3 rounded bg-white/5 text-white/60 hover:text-white hover:bg-white/10">{b.label}</button>
               ))}
               <span className="text-[11px] text-white/35 ml-1">⟷ or scroll sideways</span>
             </div>
@@ -469,7 +481,8 @@ export default function LifecycleView({ businessUnit }) {
 
       {/* ── Detail rail ─────────────────────────────────────────────────── */}
       {selected && (
-        <aside className="w-80 shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]">
+        <aside className="w-80 shrink-0 border-l border-white/10 p-4 overflow-auto text-sm bg-[#0d1218]
+          max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:w-full max-md:border-l-0 max-md:border-t max-md:rounded-t-xl max-md:max-h-[70vh] max-md:pb-16 max-md:shadow-2xl">
           {selected.loading ? <div className="text-white/50">loading…</div> : selected.missing ? <div className="text-white/50">no detail</div> : (
             <>
               <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white/70 text-xs mb-2">✕ close</button>

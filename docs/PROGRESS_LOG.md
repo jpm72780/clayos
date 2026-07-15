@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-07-15 — Session 9 (Fable 5): mobile-audit response — LIVE
+
+**Context.** Second external audit, this time at 400×768/DPR2. It confirmed the session-8 fixes
+live (title, currency, skip link, slider labels, no overflow) and flagged mobile-specific issues.
+Its one stale claim — "desktop 2D story still broken" — was already fixed in session 8 (same code
+path serves both; the jump-chips + sideways scroll the auditor praised on mobile IS that fix).
+
+**Critical — 3D at ~6 fps on phones (it's the landing view):** added a **mobile perf budget**
+(`MOBILE_PERF`: <768px or coarse-pointer <1024px) in `Lifecycle3DView`:
+- **lite quality defaults ON** (no bloom, no flow particles, lower node resolution) — full stays one tap away;
+- **DPR clamped to 1.25** on mobile (was ≤2) — fill rate dominates phone GPUs;
+- **child dots sampled to ~1,800 total** across globes — heat + globe radii still computed from the
+  FULL kid set, so sizes/orbits stay data-true, only dot density drops (links/particles drop with them);
+- **label sprites capped at 20** (was 48);
+- **flow panel starts collapsed** into a "Flow · N moved ▸" chip (it covered most of a phone canvas
+  and the KPI strip).
+
+**High/medium:**
+- **Touch targets:** nav tabs/mode toggles/BU select/⚙/? at ≥40–44px on `max-md`; AskDock input/send/
+  hide/pill bumped; drawer + jump-chip buttons padded; **sliders 3px → 24px hit area** under
+  `(pointer: coarse)`.
+- **Ask-bar clearance:** Data + Analytics bottom padding → `pb-24` on mobile (96px measured).
+- **Network legibility on phones:** `labelRenderedSizeThreshold` 8→14 + `labelDensity` 0.5 +
+  bigger label grid when the container is <640px — labels appear as you zoom instead of soup.
+- **2D story on phones:** rail was squeezing the story to ~160px — ported the ☰ drawer pattern from
+  GraphView (fixed drawer + backdrop + bottom-sheet detail rail); story now full-width (390px measured).
+- **Data table affordance:** mobile-only right-edge gradient cue that disappears at scroll end.
+- **hashchange routing (audit #8):** direct hash edits after load now re-route (listener applies
+  tab/ontoMode/focus/hl; our own `replaceState` never fires it, so no loop).
+
+**Verified:** new mobile suite **16/16** at 390×844 (lite default, collapsed flow chip, drawer,
+full-width story, hash routing, fade cue, 44px targets, 96px clearance, 0 page errors) + desktop
+regression suite 18/19 (same software-GL stall-threshold artifact as session 8; isolated probes
+~800ms). Deployed; prod cache-busted check shows `index-BXg7hpwi.js`.
+
+**Not done (accepted for POC):** compacter mobile header / hamburger nav (audit L7) — touch-target
+bumps made the header taller if anything; revisit only if John cares about phone ergonomics beyond
+demo-grade. True mobile FPS could not be measured headless (software GL) — the budget cuts geometry
+~3.4×, fill ~2.5×, and removes bloom/particles, but **ask John to sanity-check on a real phone**.
+
+---
+
 ## 2026-07-15 — Session 8 (Fable 5): external site-audit response — LIVE
 
 **Context.** John handed over a detailed external audit of clayos.pages.dev (2 critical, 3 high,

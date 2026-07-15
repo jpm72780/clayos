@@ -3,8 +3,22 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-15 (session 8 — external site-audit response, LIVE)
+**Last updated:** 2026-07-15 (session 9 — mobile-audit response, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 9 — mobile-audit response (read this first)
+Second external audit (400px/DPR2) — all actionable items fixed + shipped (bundle `index-BXg7hpwi.js`;
+details in PROGRESS_LOG). The big one: **3D ran ~6 fps on phones**, so `Lifecycle3DView` now has a
+**mobile perf budget** — lite default + DPR 1.25 + child dots sampled to ~1.8k (globe sizes stay
+data-true) + 20 labels + flow panel collapsed to a chip. Also: touch targets ≥40–44px (sliders 3px→24px
+hit area under coarse pointer), 2D-story rail → ☰ drawer (was squeezing the story to ~160px), network
+labels appear-on-zoom on phones, mobile ask-bar clearance pb-24, table right-edge fade cue, and
+**hashchange now re-routes** (pasted deep-links work after load). Mobile suite 16/16 at 390×844;
+desktop regression 18/19 (known software-GL stall artifact). **Ask John to sanity-check 3D fps on a
+real phone** — headless software GL can't measure it. The audit's "desktop 2D story still broken"
+claim was stale — session 8 fixed it for both.
 
 ---
 

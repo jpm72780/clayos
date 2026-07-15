@@ -172,7 +172,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
   }
 
   return (
-    <div className="h-full overflow-auto p-3 md:p-5 pb-16 md:pb-20">
+    <div className="h-full overflow-auto p-3 md:p-5 pb-24 md:pb-20">
       {/* portfolio analytics — calculated, value-weighted */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2">

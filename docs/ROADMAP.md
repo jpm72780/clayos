@@ -152,6 +152,21 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
   wrong); "colorblind palette on by default" (kept opt-in; charts now honor it and prefers-contrast
   auto-applies contrast)
 
+## Phase 2.11 — Mobile-audit response (session 9, 2026-07-15) — SHIPPED LIVE
+- [x] C1 — 3D mobile perf budget: lite default + DPR 1.25 + child dots sampled to ~1.8k (globe
+      sizes/orbits stay data-true) + 20 label sprites + flow panel collapsed to a chip
+- [x] H2 — touch targets ≥40–44px on max-md (tabs, toggles, ⚙/?, select, AskDock, drawers, chips);
+      sliders 3px → 24px hit area under (pointer: coarse)
+- [x] H3 — ask-bar clearance: Data/Analytics pb-24 on mobile (96px)
+- [x] H4 — network labels on phones: threshold 14 + density 0.5 + larger grid (appear on zoom)
+- [x] M5 — 2D story: rail → ☰ drawer + bottom-sheet detail on mobile (story now full-width);
+      the audit's "desktop still broken" half was stale — fixed in 2.10 for both
+- [x] M6 — data table right-edge fade cue (disappears at scroll end)
+- [x] L8 — hashchange listener: pasted/edited deep-links re-route after load
+- [x] Verified: mobile suite 16/16 at 390×844 (touch, DPR2); desktop regression 18/19
+- [ ] L7 — compacter mobile header / hamburger secondary nav (accepted for POC; revisit on demand)
+- [ ] Real-device 3D fps sanity check (headless software GL can't measure it) — ask John
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [x] Agent eval set (golden Q→A) — `evals/`

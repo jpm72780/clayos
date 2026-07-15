@@ -39,6 +39,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
   const [hlNeighbors, setHlNeighbors] = useState(null); // ids connected to a vendor/employee highlight
 
   const [q, setQ] = useState("");
+  const [xEnd, setXEnd] = useState(false); // table scrolled to its right end (mobile fade cue)
   const [typeF, setTypeF] = useState("");
   const [domainF, setDomainF] = useState("");
   const [buF, setBuF] = useState("");
@@ -224,7 +225,9 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
         )}
 
         {/* table */}
-        <div className="flex-1 overflow-auto pb-14">
+        <div className="flex-1 min-h-0 relative">
+        <div className="absolute inset-0 overflow-auto pb-24 md:pb-14"
+          onScroll={(e) => { const el = e.currentTarget; setXEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 8); }}>
           {!ents ? <SkeletonTable /> : (
             <table className="w-full text-sm border-collapse max-md:min-w-[880px]" aria-label="Clayco entities">
               <thead className="sticky top-0 bg-[#0b0f14] z-10">
@@ -261,6 +264,9 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
           {ents && filtered.length > 800 && (
             <div className="px-4 py-3 text-xs text-white/40">Showing first 800 of {filtered.length.toLocaleString()} rows — refine the filters or export CSV for the full set.</div>
           )}
+        </div>
+        {/* mobile: edge fade = "more columns this way"; gone once scrolled to the end */}
+        {!xEnd && <div aria-hidden className="md:hidden absolute right-0 top-0 bottom-0 w-8 pointer-events-none bg-gradient-to-l from-[#0b0f14] to-transparent" />}
         </div>
       </div>
 

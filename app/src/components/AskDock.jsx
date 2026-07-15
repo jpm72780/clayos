@@ -124,7 +124,7 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
   if (min) {
     return (
       <button onClick={() => setMinPersisted(false)} aria-label="Open Ask Clayco chat" title="Ask Clayco"
-        className="fixed right-3 bottom-3 z-50 w-10 h-10 grid place-items-center rounded-full bg-[#0d1218]/95 border border-white/15 text-amber-300 shadow-lg hover:bg-white/10">✦</button>
+        className="fixed right-3 bottom-3 z-50 w-10 h-10 max-md:w-12 max-md:h-12 grid place-items-center rounded-full bg-[#0d1218]/95 border border-white/15 text-amber-300 shadow-lg hover:bg-white/10">✦</button>
     );
   }
 
@@ -165,10 +165,10 @@ export default function AskDock({ projects, focus, setFocus, setHl, goToOntology
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} onFocus={() => setOpen(true)}
           aria-label="Ask Clayco a question"
           placeholder={focus ? `Ask about ${focus.code || focus.name}…` : "Ask a question about Clayco…"}
-          className="flex-1 bg-[#0d1218]/95 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:border-amber-500/40 shadow-lg" />
-        <button onClick={send} disabled={busy} aria-label="Send" className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 text-xs hover:bg-amber-500/30 disabled:opacity-40 shadow-lg">→</button>
+          className="flex-1 bg-[#0d1218]/95 border border-white/10 rounded-lg px-3 py-2 max-md:py-3 text-xs outline-none focus:border-amber-500/40 shadow-lg" />
+        <button onClick={send} disabled={busy} aria-label="Send" className="px-3 py-2 max-md:px-4 max-md:py-3 rounded-lg bg-amber-500/20 text-amber-300 text-xs hover:bg-amber-500/30 disabled:opacity-40 shadow-lg">→</button>
         <button onClick={hide} aria-label="Hide chat" title="Hide chat — it becomes a ✦ button"
-          className="px-2 py-2 rounded-lg bg-[#0d1218]/95 border border-white/10 text-white/40 text-xs hover:text-white/80 shadow-lg">–</button>
+          className="px-2 py-2 max-md:px-3 max-md:py-3 rounded-lg bg-[#0d1218]/95 border border-white/10 text-white/40 text-xs hover:text-white/80 shadow-lg">–</button>
       </div>
     </div>
   );
