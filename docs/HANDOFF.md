@@ -3,8 +3,17 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-15 (session 9 — mobile-audit response, LIVE)
+**Last updated:** 2026-07-16 (session 10 — fps-watchdog hotfix, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 10 — fps-watchdog hotfix
+John hit "full mode reverts to lite after 2 seconds": the auto-downgrade re-armed on every quality
+flip and its sample included shader-warmup jank. Now: explicit quality choice **always wins** and
+persists (`clayos.quality.v1`, beats the mobile lite default), watchdog fires once per mount after a
+1s warmup, and a transient notice explains any auto-downgrade. Verified 7/7 headless (software GL
+triggers the watchdog for real); live as `index-BQCQwCCR.js`. Details in PROGRESS_LOG.
 
 ---
 

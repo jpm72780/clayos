@@ -26,6 +26,11 @@ const MOBILE_PERF = () => {
 const MOBILE_NODE_BUDGET = 1800; // child dots across all globes (globe sizes stay data-true)
 const MOBILE_LABEL_CAP = 20;
 
+// Explicitly-chosen render quality survives reloads and tab switches; a stored choice
+// beats the mobile default AND keeps the fps watchdog out.
+const QUALITY_KEY = "clayos.quality.v1";
+const storedQuality = () => { try { return localStorage.getItem(QUALITY_KEY); } catch { return null; } };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ClayOS — one interface.
 // The ontology is the centerpiece: projects are interwoven VASCULAR SYSTEMS —
@@ -220,8 +225,17 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
   // Defaults ON for the mobile perf budget; toggled manually or auto-enabled once if
   // the opening seconds run below ~25 fps.
   const [mobilePerf] = useState(MOBILE_PERF);
-  const [lite, setLite] = useState(mobilePerf);
+  const [lite, setLite] = useState(() => { const s = storedQuality(); return s ? s === "lite" : mobilePerf; });
   const liteRef = useRef(false); useEffect(() => { liteRef.current = lite; }, [lite]);
+  const userQualityRef = useRef(storedQuality() != null); // explicit choice — the fps watchdog never overrides it
+  const autoDowngradedRef = useRef(false);                // watchdog fires at most once per mount
+  const [autoLiteNote, setAutoLiteNote] = useState(false); // transient "why did quality drop" notice
+  useEffect(() => { if (!autoLiteNote) return; const t = setTimeout(() => setAutoLiteNote(false), 8000); return () => clearTimeout(t); }, [autoLiteNote]);
+  const chooseQuality = (toLite) => {
+    userQualityRef.current = true; setAutoLiteNote(false);
+    try { localStorage.setItem(QUALITY_KEY, toLite ? "lite" : "full"); } catch { /* ignore */ }
+    setLite(toLite);
+  };
   // flow controls (recent-activity particles) — speed defaults to minimum, size range
   // starts where the old maximum was (user wants pulses big)
   const [windowIdx, setWindowIdx] = useState(2); // 60d
@@ -454,9 +468,14 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
       halos.push({ mesh: halo, base: c.radius * 0.6, pid: c.pid, phase: (c.center.x % 11) });
     }
     let raf;
-    // FPS watch: average the first few seconds; if it's struggling on a weak GPU,
-    // auto-downgrade to lite once (drops bloom + particles, which dominate cost).
-    let fpsStart = performance.now(), frames = 0, fpsChecked = false;
+    // FPS watchdog: judge a 2s sample AFTER a 1s warmup — shader compile + bloom init
+    // jank in the opening moments reads as "slow" on perfectly capable machines. It
+    // fires at most once per mount and NEVER overrides an explicit user choice: the
+    // old version re-armed on every quality flip, so tapping "● full" got yanked back
+    // to lite two seconds later, every time.
+    const sceneStart = performance.now();
+    let fpsStart = 0, frames = 0;
+    let fpsChecked = userQualityRef.current || autoDowngradedRef.current;
     const animate = () => {
       const now = performance.now(), t = now / 1000;
       for (const h of halos) {
@@ -466,11 +485,15 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         h.mesh.scale.setScalar(h.base * (1 + 0.14 * I * pulse));
       }
       if (!fpsChecked && !liteRef.current) {
-        frames++;
-        const elapsed = now - fpsStart;
-        if (elapsed > 3000) { // give it a moment to settle, then judge
-          if (frames / (elapsed / 1000) < 25) setLite(true);
-          fpsChecked = true;
+        if (!fpsStart) {
+          if (now - sceneStart > 1000) fpsStart = now; // warmup over — start the real sample
+        } else {
+          frames++;
+          const elapsed = now - fpsStart;
+          if (elapsed > 2000) {
+            if (frames / (elapsed / 1000) < 25) { autoDowngradedRef.current = true; setAutoLiteNote(true); setLite(true); }
+            fpsChecked = true;
+          }
         }
       }
       raf = requestAnimationFrame(animate);
@@ -632,10 +655,15 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
         </div>
 
         <div className="absolute top-3 right-11 z-10 flex items-center gap-1.5">
-          <button onClick={() => setLite((v) => !v)} aria-label="Toggle lite visual quality" aria-pressed={lite} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
+          <button onClick={() => chooseQuality(!lite)} aria-label="Toggle lite visual quality" aria-pressed={lite} title="Visual quality — lite drops glow + flow particles for weaker GPUs"
             className="text-[11px] px-2 py-1 max-md:px-3 max-md:py-2.5 rounded bg-black/40 text-white/60 hover:text-white">{lite ? "○ lite" : "● full"}</button>
           <button onClick={() => setSpin((s) => !s)} aria-label="Toggle camera drift" aria-pressed={spin} title="Camera drift — slow auto-orbit" className="text-[11px] px-2 py-1 max-md:px-3 max-md:py-2.5 rounded bg-black/40 text-white/60 hover:text-white">{spin ? "⏸ drift" : "▶ drift"}</button>
         </div>
+        {autoLiteNote && (
+          <div className="absolute top-12 right-11 z-10 max-w-[250px] text-[11px] bg-black/75 border border-white/10 rounded-lg px-2.5 py-1.5 text-white/70">
+            ⚡ Rendering was slow — dropped to <b>lite</b>. Tap the quality button to force full; your choice sticks.
+          </div>
+        )}
 
         {/* flow controls — what's moving, how fast, how big */}
         {!flowOpen && (

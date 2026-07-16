@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-16 — Session 10 (Fable 5): fps-watchdog hotfix — LIVE
+
+**Bug (John):** switching to "● full" showed the flowing activity for ~2s, then snapped back to
+lite with no particles. Root cause: the session-4 auto-downgrade sampled fps for the scene's first
+seconds and `setLite(true)` under 25 fps — and because the scene rebuilds on every quality flip, the
+check **re-armed each time the user chose full**, yanking them back forever. The sample also included
+shader-compile/bloom-warmup jank, so even capable machines could read "slow". (Session 9's
+lite-by-default on phones/narrow windows made the full toggle a common action, surfacing this.)
+
+**Fix (`Lifecycle3DView`):** the watchdog now (1) **never overrides an explicit user choice** —
+toggling quality sets a per-mount flag AND persists to `clayos.quality.v1`, which also wins over the
+mobile lite default on future mounts; (2) fires **at most once per mount**; (3) samples 2s **after a
+1s warmup**; (4) shows a transient notice ("Rendering was slow — dropped to lite… your choice
+sticks") instead of silently breaking.
+
+**Verified headless** (software GL is genuinely slow → real watchdog testbed): starts full → watchdog
+downgrades once with notice → explicit full **holds past the old 2s yank-back window** → persists
+across reload, watchdog stays out. 7/7 behaviors. Deployed; prod serves `index-BQCQwCCR.js`.
+
+---
+
 ## 2026-07-15 — Session 9 (Fable 5): mobile-audit response — LIVE
 
 **Context.** Second external audit, this time at 400×768/DPR2. It confirmed the session-8 fixes
