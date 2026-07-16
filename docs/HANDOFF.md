@@ -3,8 +3,26 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-16 (session 10 — fps-watchdog hotfix, LIVE)
+**Last updated:** 2026-07-16 (session 11 — service groups in the graph, LIVE; ⚠ agent down: Anthropic credits)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 11 — service groups as graph nodes (read this first)
+**⚠ FIRST: the Ask-agent is DOWN — the Anthropic key behind `agent-ask` is out of credits**
+(`anthropic_error 400: credit balance too low`; data/REST are fine). Top up billing, then
+`node evals/run.mjs` (was 0/6 purely from this).
+
+Clayco's 17 service groups are now first-class `ServiceGroup` entities (migration
+`013_service_groups.sql`): system-of-record `clayos.service_groups` + idempotent
+`kg_project_service_groups()` projection → 17 nodes + 722 edges (new types **services**
+group→project weight=record-count, **shares_data_with** group→group hand-offs; existing
+**staffed_on** Person→group). Entities 6,345 / edges 8,561. `reseed-cloud.sh` re-runs the
+projection after seeding — never insert into entities/edges directly, they're truncated on reseed.
+UI: ⬢ ServiceGroup type + "Service groups" backbone lane (3D + 2D). Client subgraph limit
+6000→6500 — kg_subgraph's alphabetical LIMIT had been silently cutting Space/Submittal/Work
+since the 200-project reseed. TAG/CDC name expansions unconfirmed (rename in service_groups,
+re-run the projection fn). Details in PROGRESS_LOG.
 
 ---
 

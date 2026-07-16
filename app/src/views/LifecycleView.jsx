@@ -28,6 +28,7 @@ const STAGES = [
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 
 const BACKBONE_ROWS = [
+  { label: "Service groups", types: ["ServiceGroup"] },
   { label: "People", types: ["Person"] },
   { label: "Organizations", types: ["Organization"] },
   { label: "IT assets", types: ["ITAsset"] },
@@ -221,7 +222,7 @@ export default function LifecycleView({ businessUnit }) {
   useEffect(() => {
     let killed = false;
     setLoading(true);
-    subgraph({ businessUnit, limit: 6000 })
+    subgraph({ businessUnit, limit: 6500 })
       .then((d) => { if (!killed) { setData(d); setLoading(false); } })
       .catch((e) => { console.error(e); if (!killed) setLoading(false); });
     return () => { killed = true; };

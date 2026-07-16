@@ -21,6 +21,11 @@ echo "2/4  Loading into cloud (TRUNCATE + insert; schema unchanged)…"
 docker exec -i clayos_db psql "$DSN" -q -v ON_ERROR_STOP=1 < /tmp/clayos_seed.sql
 docker exec -i clayos_db psql "$DSN" -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 
+# service groups live outside the seed (migration 013): entities/edges were just
+# truncated, so re-project them — their embed jobs drain in the loop below.
+echo "     Re-projecting service groups (migration 013)…"
+docker exec -i clayos_db psql "$DSN" -At -c "SELECT 'service groups: '||entities_upserted||' entities, '||edges_upserted||' edges' FROM clayos.kg_project_service_groups();"
+
 echo "3/4  Draining entity embeddings (powers semantic search / the agent)…"
 for _ in $(seq 1 160); do
   left=$(docker exec -i clayos_db psql "$DSN" -At -c "SELECT count(*) FROM clayos.graph_embed_jobs;")

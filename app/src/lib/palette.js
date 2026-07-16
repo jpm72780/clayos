@@ -6,7 +6,7 @@ export const TYPE_COLOR = {
   CostAccount: "#22d3ee", PayApp: "#06b6d4", Contract: "#0ea5e9",
   RFI: "#ef4444", Submittal: "#f97316", DailyLog: "#fb7185", QualityEvent: "#e879f9", SafetyEvent: "#dc2626",
   Space: "#60a5fa", BuildingElement: "#818cf8", Document: "#c084fc",
-  Person: "#34d399", Organization: "#10b981",
+  Person: "#34d399", Organization: "#10b981", ServiceGroup: "#f472b6",
   Pursuit: "#eab308", Estimate: "#facc15", Requisition: "#2dd4bf", ITAsset: "#94a3b8",
 };
 
@@ -18,7 +18,7 @@ export const TYPE_COLOR_CB = {
   CostAccount: "#56b4e9", PayApp: "#0072b2", Contract: "#9bd4f5",                 // blue family
   RFI: "#d55e00", Submittal: "#ff8a47", DailyLog: "#a34700", QualityEvent: "#ffb488", SafetyEvent: "#7a3500", // vermillion family
   Space: "#cc79a7", BuildingElement: "#96587c", Document: "#ecaed0",              // purple family
-  Person: "#009e73", Organization: "#5cc9a7",                                     // bluish-green family
+  Person: "#009e73", Organization: "#5cc9a7", ServiceGroup: "#7fd8be",            // bluish-green family
   Pursuit: "#f0e442", Estimate: "#bdb32f", Requisition: "#fbf3a5",                // yellow family
   ITAsset: "#94a3b8",                                                             // grey
 };
@@ -58,7 +58,7 @@ export const TYPE_SHAPE = {
   CostAccount: "◆", PayApp: "◆", Contract: "◆",                  // financial
   RFI: "▲", Submittal: "▲", DailyLog: "▲", QualityEvent: "▲", SafetyEvent: "▲", // field / quality / safety
   Space: "■", BuildingElement: "■", Document: "■",               // design / spaces / docs
-  Person: "⬢", Organization: "⬢",                                // people / orgs
+  Person: "⬢", Organization: "⬢", ServiceGroup: "⬢",             // people / orgs / service groups
   Pursuit: "★", Estimate: "★", Requisition: "★",                 // pipeline
   ITAsset: "▮",                                                  // IT
 };

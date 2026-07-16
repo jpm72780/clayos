@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-07-16 — Session 11 (Fable 5): service groups as first-class graph nodes — LIVE
+
+**Context.** John's integration brief: Clayco's 17 service groups (Employee Relations, IT,
+Marketing, Legal, Insurance, Community Affairs, Precon, Scheduling, Project Management, Field
+Operations, Safety, Cost, Quality, TAG, VDC, CDC, Sustainability) become real nodes that exchange
+data with projects and each other — not domain tags.
+
+**Migration 013 (applied to cloud + local, idempotent, additive-only):**
+- `clayos.service_groups` — system-of-record table (17 rows; slug/name/nature/description;
+  deterministic md5-based UUIDs) so the detail rail's `source_table` fetch works.
+- `kg_project_service_groups()` — projection fn (re-runnable): 17 `ServiceGroup` entities
+  (`entity_type` is unconstrained text — no enum change needed; `domain` = own slug per the brief;
+  BU = shared-services) + **722 edges**:
+  · `services` (NEW type, 659): per-project group → Project, weight = count of the project's
+    records of the group's mapped entity types (PM: RFI/Submittal/Contract → 200 projects; Cost:
+    CostAccount/PayApp → 200; Field Ops: DailyLog/Work → 122; Safety → 35; VDC: BuildingElement/
+    Space → 8; Scheduling: Phase/Activity → 8; Quality → 6; Precon: stage-based → the 80
+    design/precon-stage projects). Data-derived, no fabricated records.
+  · `shares_data_with` (NEW type, 18): the hand-off chain (precon→scheduling/PM→field ops→
+    cost/quality/safety, vdc/tag/cdc/sustainability feeding in, legal/it/marketing/etc.).
+  · `staffed_on` (existing type, 45): Person → group via `role_category` (45 of 48 people;
+    3 executives unmapped — no clean home).
+- Counts: entities 6,328 → 6,345 · edges 7,839 → 8,561. Re-run verified no-op on totals.
+  Embeddings drained (17). Grants/REVOKEs guarded like 008 (works on local PG without anon role).
+- **Reseed durability:** entities/edges are a TRUNCATE-rebuilt projection, so `reseed-cloud.sh`
+  now re-runs the projection fn after seeding (the brief's direct-insert approach would have
+  silently died on the next reseed).
+
+**UI:** `ServiceGroup` in TYPE_COLOR (#f472b6) / TYPE_COLOR_CB (bluish-green family) / TYPE_SHAPE
+(⬢); "Service groups" backbone cluster in the 3D corridor + first backbone row in the 2D story.
+**kg_subgraph itself needed no change** — but its `ORDER BY entity_type LIMIT` was already
+truncating the alphabetical tail at the app's limit=6000 (Space/Submittal/Work partially missing
+since the 200-project reseed!); client limit bumped to 6,500 in all three ontology views, which
+also restored those (deep-project mounds gained back their cut dots, e.g. CW-300 99→134 pts).
+
+**Verified:** 5/5 headless (legend, 2D story 6,345 circles + 1,797 threads, Data filter → exactly
+17 of 6,345, detail rail loads the service_groups record + connections, 0 page errors). Deployed
+(`index-CE2ETz-t.js`).
+
+**⚠ BLOCKER (not this change): the Ask-agent is down — Anthropic API credits exhausted.**
+`agent-ask` returns `anthropic_error 400: credit balance is too low` for every question, so the
+eval suite reads 0/6 (all failures are this error; REST is healthy, 200 in 80ms). John needs to
+top up the Anthropic account behind the edge function's key, then re-run `node evals/run.mjs`.
+
+**Open per the brief:** TAG and CDC expansions unconfirmed (flagged in their descriptions/
+properties — rename via `UPDATE clayos.service_groups SET name=… WHERE slug=…` then
+`SELECT clayos.kg_project_service_groups()`).
+
+---
+
 ## 2026-07-16 — Session 10 (Fable 5): fps-watchdog hotfix — LIVE
 
 **Bug (John):** switching to "● full" showed the flowing activity for ~2s, then snapped back to

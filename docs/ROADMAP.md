@@ -167,6 +167,18 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
 - [ ] L7 — compacter mobile header / hamburger secondary nav (accepted for POC; revisit on demand)
 - [ ] Real-device 3D fps sanity check (headless software GL can't measure it) — ask John
 
+## Phase 2.12 — Service groups as graph nodes (session 11, 2026-07-16) — SHIPPED LIVE
+- [x] Migration 013: clayos.service_groups (17 rows) + kg_project_service_groups() projection
+      (idempotent, additive; deterministic md5 UUIDs; guarded grants for local PG)
+- [x] Edges: services (659, group-to-project, weight=record count) + shares_data_with (18 hand-offs)
+      + staffed_on (45, Person-to-group via role_category); entities 6,345 / edges 8,561
+- [x] reseed-cloud.sh re-runs the projection (entities/edges are truncate-rebuilt on reseed)
+- [x] UI: ServiceGroup type colors/shape + backbone lane in 3D and 2D; subgraph limit 6000-to-6500
+      (also restored the alphabetically-truncated Space/Submittal/Work tail)
+- [x] Verified 5/5 headless; embeddings drained; deployed
+- [ ] TAG / CDC expansions unconfirmed — rename in service_groups, re-run projection fn
+- [ ] BLOCKED: evals 0/6 — Anthropic key behind agent-ask is out of credits (John: top up, re-run)
+
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
 - [x] Agent eval set (golden Q→A) — `evals/`

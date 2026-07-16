@@ -45,6 +45,7 @@ const STAGES = ["pursuit", "design", "precon", "construction", "closeout"];
 const STAGE_LABEL = { pursuit: "Pursuit", design: "Design", precon: "Preconstruction", construction: "Construction", closeout: "Closeout" };
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s, i]));
 const BACKBONE_GROUPS = [
+  { key: "services", label: "Service groups", types: ["ServiceGroup"], tint: "#f472b6" },
   { key: "people", label: "People", types: ["Person"], tint: "#34d399" },
   { key: "vendors", label: "Vendors / orgs", types: ["Organization"], tint: "#10b981" },
   { key: "it", label: "IT", types: ["ITAsset"], tint: "#94a3b8" },
@@ -247,7 +248,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
   useEffect(() => {
     let killed = false; setLoading(true);
-    subgraph({ businessUnit, limit: 6000 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
+    subgraph({ businessUnit, limit: 6500 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
     return () => { killed = true; };
   }, [businessUnit]);
   useEffect(() => {
