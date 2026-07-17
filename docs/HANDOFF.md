@@ -3,15 +3,16 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-16 (session 11 — service groups in the graph, LIVE; ⚠ agent down: Anthropic credits)
+**Last updated:** 2026-07-17 (session 11 wrap — agent back up after credit top-up, evals 6/6)
 **Updated by:** Claude (Fable 5) session
 
 ---
 
 ## ⚡ Session 11 — service groups as graph nodes (read this first)
-**⚠ FIRST: the Ask-agent is DOWN — the Anthropic key behind `agent-ask` is out of credits**
-(`anthropic_error 400: credit balance too low`; data/REST are fine). Top up billing, then
-`node evals/run.mjs` (was 0/6 purely from this).
+**Agent status (2026-07-17): back up** — John topped up the Anthropic credits; evals **6/6**
+(first re-run showed one nondeterministic focus-format miss — agent emitted the project *name*
+instead of its code in the `@@VIEW@@` hint; the client's name-matcher covers that case, and the
+second run passed clean).
 
 Clayco's 17 service groups are now first-class `ServiceGroup` entities (migration
 `013_service_groups.sql`): system-of-record `clayos.service_groups` + idempotent
