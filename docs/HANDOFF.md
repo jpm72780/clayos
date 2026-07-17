@@ -3,8 +3,19 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-17 (session 11 wrap — agent back up after credit top-up, evals 6/6)
+**Last updated:** 2026-07-17 (session 12 — agent focus name→code normalization + pg_cron, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 12 — agent normalization + pg_cron
+`agent-ask` now normalizes `@@VIEW project=…@@` values server-side (name → code; evals 6/6, edge fn
+redeployed). **Migration 014**: `kg_reproject_all()` chains the service-group projection (pass 3) —
+proven by a full local reproject landing back at 6,345/8,561/17/722. **pg_cron is ON** with
+`clayos_refresh_kpis` (*/30) + `clayos_snapshot_kpis` (04:20 UTC); the nightly `clayos_reproject`
+job is deliberately NOT scheduled — it would wipe all embeddings nightly and the pg_net embed-drain
+needs the service key stored in a DB setting (John's call). Remaining backlog: CI auto-deploy
+(needs workflow-scoped token), RLS enable-path, TAG/CDC naming.
 
 ---
 

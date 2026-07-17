@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-07-17 — Session 12 (Fable 5): agent focus normalization + pg_cron — LIVE
+
+**Agent `@@VIEW@@` name→code normalization (the eval flake, fixed durably):** the model sometimes
+emitted the project *name* ("Aurora") instead of its code in the view-control marker.
+`agent-ask` now resolves the marker server-side (`normalizeFocus`: exact code match → unique name
+ilike match → pass through) in both the JSON and SSE paths; marker regex widened to multi-word
+values. Edge fn redeployed; **evals 6/6** against live.
+
+**Migration 014 — reprojection keeps service groups:** `kg_reproject_all()` DELETEs and rebuilds
+all entities/edges from domain tables and knew nothing about `service_groups` — any reprojection
+(incl. 009's nightly cron) would have silently erased the 17 groups. It now chains
+`kg_project_service_groups()` as pass 3. **Proven end-to-end on local:** full reproject lands back
+at exactly 6,345 entities / 8,561 edges / 17 ServiceGroups / 722 svc edges.
+
+**pg_cron enabled on cloud** (`CREATE EXTENSION pg_cron` worked from the session role) with TWO of
+009's three jobs scheduled and smoke-tested:
+- `clayos_refresh_kpis` — */30 · `refresh_all_kpis()` (KPIs no longer refresh only at seed time)
+- `clayos_snapshot_kpis` — 04:20 UTC · feeds kpi_history trends
+- **`clayos_reproject` deliberately NOT scheduled:** a nightly delete-and-rebuild also wipes all
+  ~6.3k embeddings, and the embed-drain cron (009's pg_net template) needs the service key stored
+  in a DB setting — a security decision for John. Triggers keep the projection in sync anyway;
+  reprojection stays a manual reconciliation tool (now service-group-safe via 014). To enable
+  later: provision the pg_net drain per 009's template, then re-run 009's DO block.
+
+---
+
 ## 2026-07-16 — Session 11 (Fable 5): service groups as first-class graph nodes — LIVE
 
 **Context.** John's integration brief: Clayco's 17 service groups (Employee Relations, IT,

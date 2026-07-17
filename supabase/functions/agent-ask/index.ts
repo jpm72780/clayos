@@ -77,8 +77,8 @@ function systemPrompt(ws: string): string {
 function parseMarkers(markerText: string): { focus: any; highlight: any } {
   let focus: { project_code: string } | null = null;
   let highlight: { dim: string; value: string } | null = null;
-  const fm = markerText.match(/@@VIEW\s+project=([A-Za-z0-9-]+)\s*@@/i);
-  if (fm) focus = { project_code: fm[1] };
+  const fm = markerText.match(/@@VIEW\s+project=([^@]+?)\s*@@/i);
+  if (fm) focus = { project_code: fm[1].trim() };
   const hm = markerText.match(/@@VIEW\s+masterformat=([0-9 ]+?)\s*@@/i);
   if (hm) highlight = { dim: "masterformat", value: hm[1].trim() };
   return { focus, highlight };
@@ -119,6 +119,20 @@ async function runTools(admin: any, toolUses: any[], toolCalls: Array<{ name: st
   return results;
 }
 
+// The model sometimes emits the project NAME in the @@VIEW@@ marker instead of its
+// code ("Aurora" vs "DC-001"); the eval harness and deep-links expect the code, so
+// resolve it server-side. Unknown/ambiguous values pass through unchanged (the client
+// keeps its fallback name-matcher).
+async function normalizeFocus(admin: any, focus: { project_code: string } | null) {
+  if (!focus?.project_code) return focus;
+  const v = focus.project_code.trim();
+  const { data: byCode } = await admin.from("projects").select("code").ilike("code", v).limit(1);
+  if (byCode?.length) return { project_code: byCode[0].code };
+  const { data: byName } = await admin.from("projects").select("code").ilike("name", `%${v}%`).limit(2);
+  if (byName?.length === 1) return { project_code: byName[0].code };
+  return focus;
+}
+
 // ── JSON mode: the original blocking loop (unchanged contract; used by evals) ──
 async function runJson(apiKey: string, admin: any, system: string, messages: Msg[]): Promise<Response> {
   const toolCalls: Array<{ name: string; ok: boolean }> = [];
@@ -135,7 +149,8 @@ async function runJson(apiKey: string, admin: any, system: string, messages: Msg
     messages.push({ role: "user", content: await runTools(admin, toolUses, toolCalls) });
   }
   if (!finalText) finalText = "I wasn't able to complete the analysis within the tool-call limit.";
-  const { focus, highlight } = parseMarkers(finalText);
+  const { focus: rawFocus, highlight } = parseMarkers(finalText);
+  const focus = await normalizeFocus(admin, rawFocus);
   finalText = finalText.replace(/@@VIEW[^@]*@@/gi, "").trim();
   return new Response(JSON.stringify({ answer: finalText, tool_calls: toolCalls, focus, highlight }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -238,7 +253,8 @@ function runStream(apiKey: string, admin: any, system: string, initialMessages: 
           messages.push({ role: "user", content: await runTools(admin, toolUses, toolCalls) });
         }
         if (tail) { if (tail.startsWith("@@")) markerText += tail; else send("token", { text: tail }); tail = ""; }
-        const { focus, highlight } = parseMarkers(markerText);
+        const { focus: rawFocus, highlight } = parseMarkers(markerText);
+        const focus = await normalizeFocus(admin, rawFocus);
         send("done", { focus, highlight, tool_calls: toolCalls });
       } catch (err) {
         send("error", { error: err instanceof Error ? err.message : String(err) });

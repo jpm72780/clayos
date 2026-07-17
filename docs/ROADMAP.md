@@ -81,7 +81,9 @@ Data expansion — LIVE on cloud (re-seeded 2026-06-29 via `scripts/reseed-cloud
 - [x] Resilience: data-health banner; URL hash persists only tab/onto-mode
 Designed / deferred:
 - [~] RLS field/exec scaffolding (migration 012, not enabled)
-- [ ] Enable pg_cron + CI auto-deploy (#4 — CI blocked by token scope)
+- [x] pg_cron enabled (session 12): refresh_all_kpis */30 + snapshot_kpis nightly; reproject job
+      deliberately unscheduled (wipes embeddings; needs pg_net drain + service key in DB — John's call)
+- [ ] CI auto-deploy (#4 — blocked by token scope)
 - [ ] Semantic search in the UI (#11); 2D/Network cross-filter; split Lifecycle3DView (#14b)
 - [ ] kg_entity_facts pagination (PostgREST 1,000-row cap vs 1,711 entities)
 - [ ] Robustness: avoid hammering the `micro` Supabase instance (edge abuse-protection 503s)
@@ -177,7 +179,10 @@ Plan: `/home/clawd/.claude/plans/sparkling-singing-lighthouse.md` (3 issues + 10
       (also restored the alphabetically-truncated Space/Submittal/Work tail)
 - [x] Verified 5/5 headless; embeddings drained; deployed
 - [ ] TAG / CDC expansions unconfirmed — rename in service_groups, re-run projection fn
-- [ ] BLOCKED: evals 0/6 — Anthropic key behind agent-ask is out of credits (John: top up, re-run)
+- [x] Evals 6/6 (credits topped up 2026-07-17); agent @@VIEW@@ focus now normalized name→code
+      server-side (session 12) — the flake class is gone
+- [x] Migration 014: kg_reproject_all() chains the service-group projection (full local reproject
+      verified: 6,345/8,561/17/722)
 
 ## Phase 3 — Polish
 - [ ] Viewer LOD / expand-neighborhood perf pass
