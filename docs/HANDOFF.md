@@ -3,8 +3,25 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-17 (session 12 — agent focus name→code normalization + pg_cron, LIVE)
+**Last updated:** 2026-07-30 (session 13 — 2D story replaced by the interactive portfolio MAP, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 13 — 2D story → interactive US/world map (read this first)
+John asked to replace the 2D story with a real interactive map. **Live** (`index-CE2ETz-t.js`,
+13/13 headless vs prod): ontology modes are now **3D · Map · Network** — `MapView.jsx` (new)
+replaces `LifecycleView.jsx` (deleted); old `ontoMode:"lifecycle"` links alias to `map`.
+All 200 projects plot at their real seed `city/state` via a static lookup (`lib/geo.js`, 47 cities
++ state-centroid fallback — **no schema change, no reseed**). Basemap is d3-geo + TopoJSON
+(world-atlas/us-atlas assets, no tile servers/keys). Same-city projects fan out in screen-space
+clusters; dot click → shared focus (detail card w/ CPI/SPI/EAC/RFIs/TRIR; agent rescopes); agent
+focus flies the map. Color-by BU / stage / **cost health**; size = contract $. `BU_PALETTE` now
+lives in `lib/palette.js` (shared w/ 3D). Repo harness: `app/verify-map.mjs`.
+**New box gotchas:** puppeteer can't launch snap chromium — spawn it with
+`--remote-debugging-port` + `puppeteer.connect`; the profile dir must be a NON-hidden `$HOME`
+path (AppArmor denies dot-dirs). And the first post-deploy prod load can still serve stale edge
+cache — re-run before diagnosing.
 
 ---
 
@@ -352,8 +369,8 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
   the function cap server-side instead.
 - **Polish backlog** — semantic search in the UI (#11), graph node-by-node keyboard cycling,
   network-graph LOD (all deferred, none blocking). ~~Code-splitting~~ done in session 8 (all views
-  lazy; entry chunk 596 KB). Consider a fit/scroll toggle or minimap for the 2D story if John wants
-  the full-portfolio "bell" overview back.
+  lazy; entry chunk 596 KB). Map follow-ups if John wants them: state-level rollup choropleth,
+  cluster spiderfy-on-click, honoring the cross-cutting Highlight-by slice on the map.
 
 ## Backlog (original Phase 2 — widen + deepen)
 

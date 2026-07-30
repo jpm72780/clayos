@@ -9,7 +9,7 @@ import { setPalette } from "./lib/palette.js";
 // Every view is its own chunk — three.js, sigma/graphology, and recharts only
 // download when their tab/mode is first opened.
 const Lifecycle3DView = lazy(() => import("./views/Lifecycle3DView.jsx"));
-const LifecycleView = lazy(() => import("./views/LifecycleView.jsx"));
+const MapView = lazy(() => import("./views/MapView.jsx"));
 const GraphView = lazy(() => import("./views/GraphView.jsx"));
 const DataView = lazy(() => import("./views/DataView.jsx"));
 const DashboardView = lazy(() => import("./views/DashboardView.jsx"));
@@ -23,9 +23,12 @@ const TABS = [
 // restore shared view state from the URL hash so any view is a shareable deep-link
 const initial = (() => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(atob(h))) : {}; } catch { return {}; } })();
 
+// the "2D story" mode was replaced by the portfolio map — honor old shared links
+const modeAlias = (m) => (m === "lifecycle" ? "map" : m);
+
 export default function App() {
   const [tab, setTab] = useState(initial.tab || "graph");
-  const [ontoMode, setOntoMode] = useState(initial.ontoMode || "3d"); // '3d' | 'lifecycle' | 'network'
+  const [ontoMode, setOntoMode] = useState(modeAlias(initial.ontoMode) || "3d"); // '3d' | 'map' | 'network'
   const [bus, setBus] = useState([]);
   const [bu, setBu] = useState(null); // selected business_unit_id (null = all)
   const [projects, setProjects] = useState([]);
@@ -74,7 +77,7 @@ export default function App() {
         const h = location.hash.slice(1); if (!h) return;
         const v = JSON.parse(decodeURIComponent(atob(h)));
         if (v.tab) setTab(v.tab);
-        if (v.ontoMode) setOntoMode(v.ontoMode);
+        if (v.ontoMode) setOntoMode(modeAlias(v.ontoMode));
         if (v.focus) setFocus(v.focus);
         if (v.hl) setHl(v.hl);
       } catch { /* malformed hash — ignore */ }
@@ -101,7 +104,7 @@ export default function App() {
         </nav>
         {tab === "graph" && (
           <div className="flex items-center gap-1 ml-2 bg-white/5 rounded-md p-0.5">
-            {[{ id: "3d", label: "3D" }, { id: "lifecycle", label: "2D story" }, { id: "network", label: "Network" }].map((m) => (
+            {[{ id: "3d", label: "3D" }, { id: "map", label: "Map" }, { id: "network", label: "Network" }].map((m) => (
               <button key={m.id} onClick={() => setOntoMode(m.id)}
                 className={`px-2.5 py-1 max-md:px-3.5 max-md:py-3 rounded text-xs transition ${
                   ontoMode === m.id ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
@@ -149,7 +152,7 @@ export default function App() {
           {tab === "graph" && ontoMode === "3d" && (
             <Lifecycle3DView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} />
           )}
-          {tab === "graph" && ontoMode === "lifecycle" && <LifecycleView businessUnit={bu} />}
+          {tab === "graph" && ontoMode === "map" && <MapView businessUnit={bu} focus={focus} setFocus={setFocus} />}
           {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
           {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
           {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} onAsk={setAskSeed} />}

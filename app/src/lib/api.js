@@ -71,6 +71,13 @@ export async function projectsLite() {
   return data || [];
 }
 
+// Full project rows for the map view — every project has a real city/state in seed.
+export async function projectsGeo() {
+  return fetchAllRows(() => supabase.from("projects")
+    .select("id,code,name,business_unit_id,sector,lifecycle_stage,status,contract_value,city,state,gross_sf,start_date,end_date")
+    .order("code"));
+}
+
 export async function buRollup() {
   const { data } = await supabase.from("kg_bu_rollup").select("*").order("total_contract_value", { ascending: false });
   return data || [];

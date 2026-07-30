@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-30 — Session 13 (Fable 5): 2D story → interactive portfolio MAP — LIVE
+
+**John's ask:** replace the 2D story view with "an actual US/world map that is interactive that we
+can see all of the projects on."
+
+**Shipped (bundle `index-CE2ETz-t.js`, prod verified 13/13):** new `MapView.jsx` replaces
+`LifecycleView.jsx` (deleted). Ontology modes are now **3D · Map · Network**; old shared links with
+`ontoMode:"lifecycle"` alias to `map` (`modeAlias` in App.jsx).
+
+- **Real geography, zero infra:** d3-geo Mercator + TopoJSON (`world-atlas` countries-110m +
+  `us-atlas` states-10m, two ~110 KB hashed assets fetched at runtime) — fully self-contained, no
+  tile servers / API keys, so it deploys as plain static files. Default frame = lower 48; zoom out
+  to the world, d3-zoom pan/pinch, +/−/⌂ controls.
+- **All 200 projects as dots** at their real `projects.city/state` (already in seed + entity
+  properties — no schema change, no reseed). Coordinates come from a static lookup
+  (`lib/geo.js`: all 47 seed cities + state-centroid fallback). Same-city projects fan out in a
+  screen-space phyllotaxis cluster (biggest at center) that stays readable at any zoom; city
+  labels LOD (top 8 by $, all past k≥2.2).
+- **Selection unification (same contract as 3D):** dot click → shared `focus` {pid,name,code} →
+  active-filter bar + Ask agent rescope; detail card (desktop rail / phone bottom sheet) with
+  contract $, CPI/SPI/BAC/EAC, open RFIs, TRIR from the KPI matviews. Agent/data-table focus
+  **flies the map** to that project's city (honors `prefers-reduced-motion`).
+- **Color-by toggle:** business unit (BU_PALETTE moved to `lib/palette.js`, shared with 3D) ·
+  lifecycle stage · **cost health** (CPI red/amber/cyan — execs see over-budget geography at a
+  glance). Dot size = contract value. Legend collapses on phones. BU header filter dims
+  out-of-scope dots.
+- New `projectsGeo()` in api.js; HelpModal updated (map bullet + mode-toggle foot line).
+
+**Verified:** new headless harness `app/verify-map.mjs` (kept in repo) — desktop 1440px:
+200 dots, scope readout "$29.1B · 47 cities", basemap, click→focus+card, health legend, zoom;
+legacy-hash alias; mobile 390px: no h-scroll, tap→bottom sheet; **0 runtime exceptions**; 13/13
+against localhost AND live prod. MapView chunk is 62.8 KB gzip 23.5 (vs 3D's 1.4 MB).
+
+**New box gotchas:** snap chromium refuses puppeteer's launcher ("browser already running") —
+spawn `/snap/bin/chromium --headless=new --remote-debugging-port` and `puppeteer.connect` instead;
+profile dir must be a **non-hidden** `$HOME` path (AppArmor denies `~/.cache-*` dot-dirs:
+SingletonLock EPERM). First prod load after deploy hit the stale edge-cached index.html (known
+gotcha) — looked like total failure, passed clean on re-run.
+
+---
+
 ## 2026-07-17 — Session 12 (Fable 5): agent focus normalization + pg_cron — LIVE
 
 **Agent `@@VIEW@@` name→code normalization (the eval flake, fixed durably):** the model sometimes

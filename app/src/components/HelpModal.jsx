@@ -12,8 +12,9 @@ const HELP = {
       ["Travelling dots are real updates", "each one is a record that moved within the time window — colour shows what kind, faster means more recent."],
       ["Thicker links carry more money", "contracts, pay applications and cost accounts."],
       ["Click a project to focus everything", "the KPI strip and the Ask agent rescope to it. Use “Highlight by” (left rail) to light up a CSI code, vendor or person across every project at once."],
+      ["The Map shows where the work is", "every project as a dot on a real US map — sized by contract value, colored by business unit, stage, or cost health. Zoom, hover, and click a dot to focus it."],
     ],
-    foot: "3D · 2D story · Network are three views of the same data — switch with the toggle in the header.",
+    foot: "3D · Map · Network are three views of the same data — switch with the toggle in the header.",
   },
   data: {
     title: "Clayco Data",

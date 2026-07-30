@@ -161,3 +161,19 @@ entirely, removing the DragControls→OrbitControls pointer hand-off that crashe
 never wired (no `onNodeDrag`/`onNodeDragEnd`) and fights the deterministic layout. Disabling it is the
 minimal, intent-aligned fix; node clicks and camera orbit/pan/zoom are unaffected. Verified 0 exceptions
 across aggressive drags / sliders / highlight changes / business-unit rebuilds / resize.
+
+## ADR-015 — Portfolio map: static client-side geocoding, no schema change
+**Status:** Accepted (2026-07-30, session 13)
+**Context:** John asked to replace the 2D story with an interactive US/world map showing all
+projects. Projects already carry real `city`/`state` (deep projects hand-placed, light ones drawn
+from `seed/generate.py CITIES`, 47 distinct cities), but no lat/lng column exists.
+**Decision:** Plot via a static `app/src/lib/geo.js` lookup (city → [lon,lat], state-centroid
+fallback) instead of adding lat/lng columns + reseeding. Basemap is TopoJSON (`world-atlas`
+countries-110m + `us-atlas` states-10m) rendered with d3-geo — no tile servers or map API keys.
+**Rationale:** The city list is finite, seed-controlled, and byte-stable — a migration + reseed
+(TRUNCATE + full embed re-drain, ~2-3 min + API cost, plus RNG-ordering risk to the goldens) buys
+nothing over a 50-line lookup. Self-contained TopoJSON keeps the app deployable as pure static
+files (Cloudflare Pages, CSP-friendly, offline demos) and visually consistent with the dark theme,
+which real tile providers (OSM policy, CARTO licensing, key management) complicate. **Future:** if
+projects ever get per-site addresses (Snowflake track), add real lat/lng columns there and bypass
+the lookup; the map reads coordinates through one `coordsFor()` seam.

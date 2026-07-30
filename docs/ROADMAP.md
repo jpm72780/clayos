@@ -41,7 +41,9 @@ Scope: all five layers thin, live. **App: https://clayos.pages.dev**
 
 ## Phase 2.5 — Unified 3D "vascular" ontology workspace (session 2, 2026-06-28) — IN PROGRESS
 Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
-- [x] 2D lifecycle "story" view (SVG) — projects as data-mass mounds + bell + backbone lane
+- [x] ~~2D lifecycle "story" view~~ — replaced by the interactive portfolio MAP (session 13,
+      2026-07-30): d3-geo/TopoJSON US-world basemap, all 200 projects at real city/state,
+      city clusters, color-by BU/stage/cost-health, click→focus + agent fly-to
 - [x] Cross-cutting "Highlight by" filters (MasterFormat/CSI · UniFormat · Vendor · Employee)
 - [x] 3D ontology (`3d-force-graph`): floating project globe-clusters, lifecycle into depth
 - [x] Selection-driven docked KPI strip + docked Ask agent (click project → rescope)

@@ -7,7 +7,7 @@ import {
   subgraph, entityDetail, classificationCodes, entityClassMap, entityFacts,
   buRollup, evmByProject, fieldByProject, safetyByProject,
 } from "../lib/api.js";
-import { colorFor, shapeFor, TYPE_COLOR } from "../lib/palette.js";
+import { colorFor, shapeFor, TYPE_COLOR, BU_PALETTE } from "../lib/palette.js";
 import OntologyIntro from "../components/OntologyIntro.jsx";
 import { defOf } from "../lib/glossary.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
@@ -51,7 +51,6 @@ const BACKBONE_GROUPS = [
   { key: "it", label: "IT", types: ["ITAsset"], tint: "#94a3b8" },
   { key: "pipeline", label: "Pipeline", types: ["Pursuit", "Estimate", "Requisition"], tint: "#eab308" },
 ];
-const BU_PALETTE = ["#38bdf8", "#a78bfa", "#f472b6", "#fb923c", "#4ade80"];
 const PHI = Math.PI * (3 - Math.sqrt(5));
 
 // ── Orbital layout constants ──────────────────────────────────────────────────

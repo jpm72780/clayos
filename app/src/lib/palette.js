@@ -64,6 +64,10 @@ export const TYPE_SHAPE = {
 };
 export const shapeFor = (t) => TYPE_SHAPE[t] || "●";
 
+// Business-unit tints — shared by the 3D orbit and the map so a BU reads as the
+// same hue in every view (assigned by sorted business_unit_id order).
+export const BU_PALETTE = ["#38bdf8", "#a78bfa", "#f472b6", "#fb923c", "#4ade80"];
+
 export const DOMAINS = [
   "project", "project_controls", "design", "field_ops", "safety", "quality",
   "financials", "procurement", "business_development", "estimating", "enterprise", "hr", "recruiting", "it",
