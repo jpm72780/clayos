@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-07-31 — Session 14 (Fable 5): self-explaining Analytics (KPI guide) — LIVE
+
+**John's ask:** make Analytics descriptive for people who aren't fluent in AEC KPIs — for every
+measurement: what it is, what a good number looks like and means, what a bad one looks like and
+means.
+
+**Shipped (bundle `index-CzrADZa0.js`, prod verified 13/13):**
+- `lib/glossary.js` rewritten as a structured **KPI_GUIDE** — every metric carries
+  `{name, what, good, bad}` in plain language (CPI, SPI, BAC, EAC, TRIR, WIP, RFI, Backlog,
+  Pipeline, Win rate, Over budget, Utilization, Bench, Overallocated, Submittal, Pursuit,
+  Estimate). `guideOf(label)` fuzzy-matches any label; `defOf(label)` flattens to text with
+  ✓ Good / ✗ Bad lines, so every existing `title=` call site (3D KPI strip, BU rollup) got richer
+  for free.
+- **Dashboard:** every dotted-underlined metric label is now a button — hover (mouse) or tap
+  (touch) opens a fixed-position what/good/bad popover (`ExplainerPop`, viewport-clamped, flips
+  above near the bottom; pointerType guard prevents the touch hover/click double-fire). All 6
+  charts have an **"(i) explain" toggle** — an in-card panel with a how-to-read paragraph (bars,
+  colors, reference lines) plus the full guide entry for each metric on the chart. Header hint
+  ("hover or tap any dotted label…"), BU-rollup CPI/TRIR + utilization/bench/overallocated
+  title tooltips, HelpModal dashboard topic updated.
+- **Map detail card** labels (CPI/SPI/BAC/EAC/RFIs/TRIR) get the same flattened hovers.
+- The ⓘ glyph tofu-boxed in some fonts → replaced with a CSS-drawn circled "i".
+
+**Verified:** new `app/verify-analytics.mjs` (kept in repo): popover on tap with Good/Bad rows,
+6/6 explain toggles, TRIR panel content, win-rate label popover, mobile popover clamped
+on-screen + no h-scroll, map regression (it now imports the glossary), 0 exceptions — 13/13
+against localhost AND live prod; verify-map.mjs still 13/13.
+
+---
+
 ## 2026-07-30 — Session 13 (Fable 5): 2D story → interactive portfolio MAP — LIVE
 
 **John's ask:** replace the 2D story view with "an actual US/world map that is interactive that we

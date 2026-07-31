@@ -3,8 +3,19 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-30 (session 13 — 2D story replaced by the interactive portfolio MAP, LIVE)
+**Last updated:** 2026-07-31 (session 14 — self-explaining Analytics: KPI guide popovers + chart explain panels, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 14 — self-explaining Analytics (read this first)
+John: don't assume anyone is fluent in AEC KPIs. **Live** (`index-CzrADZa0.js`, 13/13 vs prod):
+`lib/glossary.js` is now a structured **KPI_GUIDE** — every metric has plain-language
+`{what, good, bad}`; `guideOf()` returns the entry, `defOf()` flattens it (so 3D-strip/BU-rollup
+`title=` hovers upgraded for free). Dashboard: dotted metric labels are hover/tap **popovers**
+(what + ✓ Good + ✗ Bad, viewport-clamped `ExplainerPop`); all 6 charts have an **"(i) explain"**
+in-card panel (how to read the bars/lines + full guide per metric); map detail-card labels hover
+too. Harness: `app/verify-analytics.mjs` (same CDP-attach pattern as verify-map).
 
 ---
 

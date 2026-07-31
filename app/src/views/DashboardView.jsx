@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   ReferenceLine, CartesianGrid, Legend,
@@ -7,7 +7,7 @@ import {
   buRollup, evmByProject, fieldByProject, safetyByProject,
   wipByProject, backlogByBu, pipelineByBu, utilizationByBu, kpiHistory,
 } from "../lib/api.js";
-import { defOf } from "../lib/glossary.js";
+import { defOf, guideOf } from "../lib/glossary.js";
 import { chartColor } from "../lib/palette.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
 import { SkeletonStats, SkeletonCard } from "../components/Skeleton.jsx";
@@ -38,8 +38,73 @@ function svgToPng(svg, name) {
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
 }
 
-function Card({ title, children, sub, csvRows, name, ask, onAsk }) {
+// what a guide entry looks like rendered: definition + green good / red bad rows
+// (✓/✗ glyphs double as a non-color cue for colorblind users)
+function GuideBlock({ g, tight }) {
+  return (
+    <div className={`text-[11px] leading-snug ${tight ? "" : "space-y-1"}`}>
+      <div className="text-white/85 font-medium">{g.name}</div>
+      <div className="text-white/60 mt-0.5">{g.what}</div>
+      {g.good && <div className="text-emerald-300/90 mt-1"><span className="font-semibold">✓ Good — </span>{g.good}</div>}
+      {g.bad && <div className="text-red-300/90 mt-1"><span className="font-semibold">✗ Bad — </span>{g.bad}</div>}
+    </div>
+  );
+}
+
+// floating explainer anchored to a metric label — fixed-position so it never
+// clips inside the scrolling grid; flips above the label when near the bottom
+function ExplainerPop({ guide, anchorRef }) {
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    const r = anchorRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const W = 288, M = 8;
+    const x = Math.min(Math.max(M, r.left), window.innerWidth - W - M);
+    const below = r.bottom + 230 < window.innerHeight;
+    setPos(below ? { left: x, top: r.bottom + 6 } : { left: x, bottom: window.innerHeight - r.top + 6 });
+  }, [anchorRef]);
+  if (!pos) return null;
+  return (
+    <div role="tooltip" style={pos}
+      className="fixed z-[70] w-72 bg-[#10161e] border border-white/15 rounded-xl p-3 shadow-2xl">
+      <GuideBlock g={guide} />
+    </div>
+  );
+}
+
+// metric label that explains itself: hover (mouse) or tap (touch) opens the
+// what-it-is / good / bad card whenever the glossary knows the metric
+function MetricLabel({ children, className = "text-[10px] text-white/45" }) {
+  const g = guideOf(children);
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("click", close);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("click", close); };
+  }, [open]);
+  if (!g) return <div className={className}>{children}</div>;
+  return (
+    <div className={className}>
+      <button ref={btnRef} type="button" aria-label={`What does ${children} mean?`}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onPointerEnter={(e) => { if (e.pointerType === "mouse") setOpen(true); }}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse") setOpen(false); }}
+        className="cursor-help text-left underline decoration-dotted decoration-white/30 underline-offset-2">
+        {children}
+      </button>
+      {open && <ExplainerPop guide={g} anchorRef={btnRef} />}
+    </div>
+  );
+}
+
+// chart card. `info` = { read, metrics } → an "ⓘ explain" toggle that decodes the
+// chart (how to read it) and every metric on it in plain language.
+function Card({ title, children, sub, csvRows, name, ask, onAsk, info }) {
   const bodyRef = useRef(null);
+  const [explain, setExplain] = useState(false);
   const exportPng = () => { const svg = bodyRef.current?.querySelector("svg"); if (svg) svgToPng(svg, (name || title) + ".png"); };
   return (
     <div className="min-w-0 bg-[#0d1218] border border-white/10 rounded-xl p-4">
@@ -49,27 +114,36 @@ function Card({ title, children, sub, csvRows, name, ask, onAsk }) {
           {sub && <div className="text-xs text-white/40">{sub}</div>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {info && (
+            <button onClick={() => setExplain((v) => !v)} aria-expanded={explain} title="What does this chart mean?"
+              className={`text-[11px] inline-flex items-center gap-1 ${explain ? "text-cyan-300" : "text-white/35 hover:text-white/80"}`}>
+              <span aria-hidden className="inline-grid place-items-center w-3.5 h-3.5 rounded-full border border-current text-[9px] leading-none">i</span>
+              explain
+            </button>
+          )}
           {onAsk && ask && <button onClick={() => onAsk(ask)} title="Ask Clayco about this chart" className="text-[11px] text-amber-300/70 hover:text-amber-300">✦ ask</button>}
           {csvRows?.length > 0 && <button onClick={() => downloadCsv(csvRows, (name || title) + ".csv")} title="Download data as CSV" className="text-[11px] text-white/35 hover:text-white/80">CSV</button>}
           <button onClick={exportPng} title="Download chart as PNG" className="text-[11px] text-white/35 hover:text-white/80">PNG</button>
         </div>
       </div>
+      {explain && info && (
+        <div className="mt-2 bg-white/[0.03] border border-white/10 rounded-lg p-3">
+          {info.read && <div className="text-[11px] leading-snug text-white/65">{info.read}</div>}
+          {(info.metrics || []).map((m) => {
+            const g = guideOf(m);
+            return g && (
+              <div key={m} className="border-t border-white/5 mt-2 pt-2 first:border-0 first:mt-0 first:pt-0">
+                <GuideBlock g={g} tight />
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div ref={bodyRef} className="mt-2">{children}</div>
     </div>
   );
 }
 const tip = { contentStyle: { background: "#0d1218", border: "1px solid #1f2733", borderRadius: 8, fontSize: 12 } };
-
-// metric label with a plain-language hover definition when the glossary knows it
-function MetricLabel({ children, className = "text-[10px] text-white/45" }) {
-  const def = defOf(children);
-  return (
-    <div title={def || undefined}
-      className={`${className}${def ? " cursor-help underline decoration-dotted decoration-white/25 underline-offset-2" : ""}`}>
-      {children}
-    </div>
-  );
-}
 
 function Stat({ label, value, sub, warn }) {
   return (
@@ -178,6 +252,7 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
         <div className="flex items-center gap-2 mb-2">
           <h2 className="text-sm font-medium text-white/80">Portfolio analytics</h2>
           <span className="text-white/40 text-xs">· {port.n} project{port.n === 1 ? "" : "s"}, value-weighted</span>
+          <span className="text-white/30 text-[11px] max-md:hidden">· hover or tap any <span className="underline decoration-dotted decoration-white/25 underline-offset-2">dotted label</span> for what it means — and what good vs bad looks like</span>
           {focus && <button onClick={() => setFocus?.(null)} className="text-xs rounded px-2 py-0.5 bg-amber-500/15 text-amber-200">{focus.code || focus.name} ✕</button>}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
@@ -202,7 +277,8 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
               {hasProjects ? (
                 <>
                   <div className="text-2xl font-semibold mt-1">{fmt$(r.total_contract_value)}</div>
-                  <div className="text-xs text-white/40 mt-1">{r.active_projects} active · CPI {r.cpi ?? "—"} · TRIR {r.trir ?? "—"}</div>
+                  <div className="text-xs text-white/40 mt-1 cursor-help" title={`${defOf("CPI")}\n\n${defOf("TRIR")}`}>
+                    {r.active_projects} active · CPI {r.cpi ?? "—"} · TRIR {r.trir ?? "—"}</div>
                 </>
               ) : (
                 <>
@@ -237,8 +313,11 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
                   </div>
                 </div>
                 <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-xs text-white/50">
-                  <span>{ru.people ?? 0} people · {ru.avg_utilization_pct != null ? Math.round(ru.avg_utilization_pct) + "% util" : "—"}</span>
-                  <span>{(ru.unstaffed ?? 0) > 0 && <span className="text-cyan-300/80">{ru.unstaffed} bench</span>}{(ru.overallocated ?? 0) > 0 && <span className="text-red-400/80 ml-2">{ru.overallocated} over</span>}</span>
+                  <span className="cursor-help" title={defOf("Utilization")}>{ru.people ?? 0} people · {ru.avg_utilization_pct != null ? Math.round(ru.avg_utilization_pct) + "% util" : "—"}</span>
+                  <span>
+                    {(ru.unstaffed ?? 0) > 0 && <span className="text-cyan-300/80 cursor-help" title={defOf("Bench")}>{ru.unstaffed} bench</span>}
+                    {(ru.overallocated ?? 0) > 0 && <span className="text-red-400/80 ml-2 cursor-help" title={defOf("Overallocated")}>{ru.overallocated} over</span>}
+                  </span>
                 </div>
               </div>
             );
@@ -250,6 +329,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
       {trendData.length > 1 && (
         <div className="mb-4">
           <Card title="Performance trend" sub={`CPI / SPI over time · ${focus ? focus.code || focus.name : "portfolio average"}`}
+            info={{
+              read: "Each line tracks the average cost score (CPI) and schedule score (SPI) by month. The dashed line at 1.0 is \"exactly on plan\" — lines holding at or above it mean cost and schedule are under control; a line sliding downward means performance is deteriorating and the gap to plan is widening.",
+              metrics: ["CPI", "SPI"],
+            }}
             csvRows={trendData} name="performance-trend" onAsk={onAsk} ask={`Explain the CPI and SPI performance trend over time for ${askScope}. What's driving the direction?`}>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={trendData} margin={{ left: -16 }}>
@@ -269,6 +352,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
       {/* charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Cost & Schedule Performance" sub={`CPI / SPI by project · 1.0 = on plan (lower = behind/over)${capNote(evmF.length)}`}
+          info={{
+            read: "One pair of bars per project: a cost score (CPI) and a schedule score (SPI). The dashed line at 1.0 means \"exactly on plan\" — bars reaching it or above are healthy, and any bar that falls short turns a warning color: it's a project over budget (CPI) or behind schedule (SPI).",
+            metrics: ["CPI", "SPI"],
+          }}
           csvRows={cpiData} name="cost-schedule" onAsk={onAsk} ask={`For ${askScope}, which projects are under-performing on cost (CPI) or schedule (SPI), and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={cpiData} margin={{ left: -16 }}>
@@ -284,6 +371,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
         </Card>
 
         <Card title="Budget vs Forecast at Completion" sub={`BAC vs EAC ($M) · EAC > BAC = projected overrun${capNote(evmF.length)}`}
+          info={{
+            read: "Two bars per project, in millions of dollars: what the job was budgeted to cost (BAC) next to what it's now forecast to actually cost (EAC). Matching heights = on budget. Wherever the forecast bar is taller than the budget bar, that project is expected to finish over budget by the difference.",
+            metrics: ["BAC", "EAC"],
+          }}
           csvRows={budgetData} name="budget-vs-forecast" onAsk={onAsk} ask={`For ${askScope}, which projects show the biggest forecast overrun (EAC vs BAC) and what's causing it?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={budgetData} margin={{ left: -16 }}>
@@ -295,6 +386,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
         </Card>
 
         <Card title="Work-in-Progress — over / under billing" sub={`$M billed vs earned · positive = overbilled, negative = underbilled${capNote(wipF.length)}`}
+          info={{
+            read: "One bar per project, in millions: how far billing has run ahead of (above zero) or behind (below zero) the work actually completed. Bars above the line = billed ahead of the work — the client is funding the job. Bars below = work done but not yet billed — the contractor is fronting the cash.",
+            metrics: ["WIP"],
+          }}
           csvRows={wipData} name="wip-billing" onAsk={onAsk} ask={`For ${askScope}, which projects are most over- or under-billed (WIP), and what does that imply for cash?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={wipData} margin={{ left: -16 }}>
@@ -306,6 +401,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
         </Card>
 
         <Card title="Open RFIs" sub={`Open vs total RFIs by project${capNote(fieldF.length)}`}
+          info={{
+            read: "Two bars per project: all design questions asked to date (total), and the ones still waiting on an answer (open). Watch the open bar — each one is a question that can hold up construction until the designers respond. A big gap between total and open means questions are getting answered.",
+            metrics: ["RFI"],
+          }}
           csvRows={rfiData} name="open-rfis" onAsk={onAsk} ask={`For ${askScope}, which projects have the most open RFIs and what's the average turnaround?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={rfiData} margin={{ left: -16 }}>
@@ -317,6 +416,10 @@ export default function DashboardView({ businessUnit, bus = [], focus, setFocus,
         </Card>
 
         <Card title="Safety — TRIR" sub={`Total Recordable Incident Rate (per 200k hours)${capNote(safetyF.length)}`}
+          info={{
+            read: "One bar per project: how often people are getting hurt, normalized per 200,000 hours worked so big and small projects compare fairly. Shorter bars are safer. The dashed line marks the ~3.0 industry average — any bar above it has more injuries than typical for construction.",
+            metrics: ["TRIR"],
+          }}
           csvRows={trirData} name="safety-trir" onAsk={onAsk} ask={`For ${askScope}, which projects have the worst safety record (TRIR vs the industry average) and why?`}>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={trirData} margin={{ left: -16 }}>

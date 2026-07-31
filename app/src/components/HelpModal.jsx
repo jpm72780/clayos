@@ -30,7 +30,8 @@ const HELP = {
     title: "Clayco Analytics",
     blurb: "Portfolio KPIs and trends, value-weighted across whatever projects are in scope.",
     points: [
-      ["Hover any underlined label", "CPI, SPI, EAC, TRIR, WIP, backlog — for a plain-language definition."],
+      ["Every number explains itself", "hover or tap any dotted-underlined label (CPI, SPI, EAC, TRIR, WIP, backlog…) for what it measures, what a good value means, and what a bad one means — no construction background assumed."],
+      ["Every chart has ⓘ explain", "tap it for how to read that chart: what the bars and reference lines mean and when to worry."],
       ["Scope follows your focus", "focus a project (from the ontology, the data table, or the chat) and every stat and chart rescopes to it."],
       ["Compare over time", "the CPI / SPI trend line shows direction, not just a snapshot."],
       ["Export or ask", "every chart exports CSV / PNG, and “✦ ask” sends a chart-specific question to the agent."],

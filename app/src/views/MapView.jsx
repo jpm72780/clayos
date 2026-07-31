@@ -10,6 +10,7 @@ import { projectsGeo, listBusinessUnits, evmByProject, fieldByProject, safetyByP
 import { coordsFor } from "../lib/geo.js";
 import { BU_PALETTE, chartColor } from "../lib/palette.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
+import { defOf } from "../lib/glossary.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ClayOS — portfolio map. Every project as a glowing dot on a real US/world
@@ -341,9 +342,10 @@ function DetailCard({ p, buName, evm, field, safety, onClose }) {
 }
 
 function Stat({ label, value, warn }) {
+  const def = defOf(label); // plain-language what/good/bad hover when the glossary knows it
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-white/35">{label}</div>
+    <div title={def || undefined} className={def ? "cursor-help" : undefined}>
+      <div className={`text-[10px] uppercase tracking-wide text-white/35${def ? " underline decoration-dotted decoration-white/25 underline-offset-2" : ""}`}>{label}</div>
       <div className={warn ? "text-amber-300" : "text-white/85"}>{value}</div>
     </div>
   );
