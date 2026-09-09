@@ -3,7 +3,8 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-09-09 (session 15 — the "Clayco Time" tab: Gantt + history + EVM curves, LIVE)
+**Last updated:** 2026-09-09 (session 15 — the "Clayco Time" tab: Gantt + history + EVM curves,
+plus the detail-project discoverability follow-up. All LIVE and verified against prod.)
 **Updated by:** Claude (Fable 5) session
 
 ---
@@ -330,41 +331,53 @@ new repo + new Supabase project · Postgres-native graph · depth-first (3 BUs, 
 
 ## Current snapshot — where we are RIGHT NOW
 
-**Phase:** Phase 1 complete & live. **Session 2 = ontology UX overhaul** toward a single
-Palantir/OrgMap-style **linked-selection workspace** (user direction: "one interface for everything").
+**Everything below was verified against the live cloud project on 2026-09-09 (session 15).**
+If a number here disagrees with an older section, this section wins.
 
-**Session-2 frontend state (all live at https://clayos.pages.dev → Ontology tab):**
-- **Three ontology modes** (toggle in the Ontology tab header): **Lifecycle 3D** (default) · **2D story** · **Network** (the original Sigma graph).
-- **Lifecycle 3D** = the centerpiece. Projects are **floating "vascular" globe-clusters** in 3D (x=lifecycle receding into depth, sized by data, tinted by business unit, faint membrane), connected by **thin vessels** with **flowing cyan particles = data points that "moved" in a time window**. Bloom + depth fog + drifting auto-orbit camera. Built on `3d-force-graph` + `three` + `three-spritetext` (added deps; lazy-loaded chunk).
-- **Selection drives everything (the unification):** click a project globe → the docked **KPI strip** (bottom) rescopes to that project (CPI/SPI/EAC/RFIs/TRIR from the matviews) and the docked **Ask** box pre-loads its context. "↩ enterprise" resets.
-- **Cross-cutting "Highlight by" rail:** MasterFormat (CSI) · UniFormat · Vendor · Employee — highlights that key across **every** project at once (highlight, don't remove). Backed by `classification_codes` + `entities.classification_id` (read via PostgREST, no schema change).
-- **Flow controls panel:** time-window (1h→30d) · speed · size sliders; live "N moved" count.
-- New frontend files: `app/src/views/Lifecycle3DView.jsx` (3D), `app/src/views/LifecycleView.jsx` (2D), plus `App.jsx`/`api.js` wiring.
+**Live:** https://clayos.pages.dev · Supabase `fwaydsjpudusbaeyccjc` · repo
+github.com/jpm72780/clayos (`main`, currently `d263b54`). Deploys are manual (no CI) — see
+"How to deploy right now" below.
 
-*(Original Phase-1 snapshot below still holds — backend/agent/data unchanged this session.)*
+**Data (counted, not remembered):**
 
-**Phase 1 (vertical slice):** **COMPLETE & DEPLOYED LIVE.** All five layers demoable end-to-end.
+| | |
+|---|---|
+| projects | **200** (8 with activity-level detail, 192 summary-grain) |
+| entities / edges | **6,441 / 8,673** — client subgraph limit is 8,000, so 3D/Network fit |
+| embeddings | **6,441 / 6,441** — fully drained |
+| schedule_activities | **1,088** (960 `is_summary` = relational-only, never projected — ADR-016) |
+| kpi_history | **7,920** rows, grown nightly by pg_cron |
+| pg_cron | **2 active jobs**: `clayos_refresh_kpis` (*/30), `clayos_snapshot_kpis` (04:20 UTC) |
 
-**Live system (all working):**
-- **App:** https://clayos.pages.dev (Cloudflare Pages) — Ontology viewer (Sigma), Reporting (Recharts), Ask ClayOS (chat).
-- **Supabase:** project `fwaydsjpudusbaeyccjc` — schema + seed + 750 embeddings loaded; `clayos` schema exposed to PostgREST.
-- **Edge functions:** `agent-ask` (Claude `opus-4-8` tool-loop) + `embed-entities`, deployed with secrets set.
-- **Agent verified end-to-end on 2 question types** (against live cloud):
-  - "Which Clayco Compute projects are over budget and why" → Aurora CPI 0.91 / SPI 0.839 / EAC $396.9M (cited).
-  - "Which project has the worst safety record" → Aurora TRIR 9.27 vs Cedar Rapids 4.38 (correct comparison table).
-  - Routes through kg_kpi/kg_search/kg_traverse/kg_get_entity; numbers come from KPI matviews (no hallucination).
-- **Code:** github.com/jpm72780/clayos (`main`). Frontend data paths confirmed via anon PostgREST.
+**App shape — 4 tabs plus an always-present Ask dock:**
+- **Clayco Ontology** — 3D (orbital lifecycle) · Map (real US/world geography) · Network (Sigma).
+- **Clayco Time** — Schedule (Gantt) · History (transaction timeline) · Trends (EVM S-curve).
+- **Clayco Data** — the entity/fact table.
+- **Clayco Analytics** — self-explaining dashboards (every metric carries what/good/bad).
 
-**Known caveats / not done:**
-- **CI auto-deploy NOT enabled.** The Actions workflow is parked at `docs/deploy/github-actions-deploy.yml`
-  (the available gh token lacks `workflow` scope; the fine-grained PAT has no access to this repo). To deploy
-  now: `cd app && npm run build && npx wrangler pages deploy dist --project-name=clayos`. To enable CI: add
-  the file to `.github/workflows/` with a `workflow`-scoped token and set repo secrets (CLOUDFLARE_API_TOKEN,
-  CLOUDFLARE_ACCOUNT_ID, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — anon key is public-safe).
-- **Frontend not yet visually verified in a browser** (build + all data paths via anon PostgREST confirmed; no screenshot taken).
-- **pg_cron not enabled** on the cloud project (migration 009 no-op'd). KPI matviews are fresh from seed but
-  won't auto-refresh until pg_cron is enabled + `refresh_all_kpis()` scheduled.
-- RLS role-scoping and text-to-SQL (`kg_query`) deferred to Phase 2 (see ROADMAP).
+**Three shared cross-filters** thread through all of it: `focus` (one project), `hl` (a
+CSI/vendor/employee slice), and `range` (a time window — chip only shows on `RANGE_TABS`).
+Clicking a project anywhere sets `focus` everywhere, including the agent's context.
+
+**Green as of the last run:**
+- `app/verify-time.mjs` **30/30** · `app/verify-map.mjs` **13/13** · `app/verify-analytics.mjs`
+  **13/13** — all three run against **prod**, not just localhost.
+- `app/evals/run.mjs` **6/6** (the agent tool-loop goldens; held through the session-15 reseed).
+
+**Known caveats — real ones only:**
+- **No CI.** Deploy is a manual `npm run build && npx wrangler pages deploy`. The workflow is
+  parked at `docs/deploy/github-actions-deploy.yml`; enabling it needs a `workflow`-scoped GitHub
+  token from John.
+- **RLS is not enabled.** Scaffolding is migration 012; the anon read path must be verified first.
+- **`kg_query` text-to-SQL is not in the tool registry** — deliberately deferred.
+- **The demo clock drifts.** `seed/generate.py` `TODAY` = 2026-09-09 (override
+  `CLAYOS_SEED_TODAY`). The Time views make staleness obvious; bump it and reseed when it shows.
+- **3D LOD is still the real ceiling on graph growth**, not the subgraph limit.
+
+**Governing constraint (unchanged):** Supabase is NOT Clayco-approved. **No real Clayco data may
+ever land in this project.** Real-data work is the Snowflake port in `integrations/snowflake/`
+(brief: `docs/SNOWFLAKE_SEMANTIC_BRIEF.md`), and it is **blocked on John's Phase 0** — IT
+approvals, Cortex yes/no, approved hosting, a service-user key pair, and a pilot slate.
 
 ---
 
@@ -419,29 +432,38 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
   code/keyword — no edge-function change.
 
 ## Next actions
-*(The structured focus hint + kg_query items that used to live here shipped in session 3 — Phase C.)*
-- **CI auto-deploy** — needs a `workflow`-scoped gh token; workflow parked at `docs/deploy/`.
-- **pg_cron** on the cloud project + reschedule `refresh_all_kpis()` (migration 009 patterns).
+
+**Nothing is blocking and nothing is half-finished — session 15 ended clean.** Pick from:
+
+*Waiting on John (not actionable by the agent):*
+- **Snowflake Phase 0** — the only real blocker on real-data work. IT approvals, Cortex yes/no,
+  approved hosting, service-user key pair, pilot slate of 10–20 projects.
+- **CI auto-deploy** — needs a `workflow`-scoped GitHub token; workflow parked at `docs/deploy/`.
+- **Sanity-check 3D fps on a real phone** — headless software GL can't measure it.
+
+*Actionable now, none blocking:*
 - **RLS enable-path** — scaffolding is migration 012; verify the anon read path before enabling.
-- **kg_entity_facts pagination follow-up** — `fetchAllRpc` handles it client-side now; consider raising
-  the function cap server-side instead.
-- **Polish backlog** — semantic search in the UI (#11), graph node-by-node keyboard cycling,
-  network-graph LOD (all deferred, none blocking). ~~Code-splitting~~ done in session 8 (all views
-  lazy; entry chunk 596 KB). Map follow-ups if John wants them: state-level rollup choropleth,
-  cluster spiderfy-on-click, honoring the cross-cutting Highlight-by slice on the map.
+- **3D LOD** (cluster expand-on-zoom) — the actual ceiling on graph growth.
+- **TAG / CDC service-group name expansions** — unconfirmed; rename in `clayos.service_groups`
+  then re-run `kg_project_service_groups()`.
+- **Time-view follow-ups** — honor `range` in the 3D flow window; a portfolio-level aggregate
+  S-curve on Trends; Gantt baseline-vs-current variance shading.
+- **Map follow-ups** — state-level rollup choropleth, cluster spiderfy-on-click, honoring the
+  Highlight-by slice on the map.
+- **Polish** — semantic search in the UI (#11), graph keyboard cycling, raising the
+  `kg_entity_facts` cap server-side (client pages around it today).
 
 ## Backlog (original Phase 2 — widen + deepen)
 
-1. **Visually verify the UI** in a browser (or the /run skill): open https://clayos.pages.dev — confirm
-   the Sigma graph renders + drill-down works, dashboards render, chat answers. Fix any runtime issues.
-2. **Enable CI auto-deploy** (optional): move `docs/deploy/github-actions-deploy.yml` →
+*Items 1 (visual verification — three headless suites now run against prod), 3 (pg_cron — 2 active
+jobs since session 12) and 6 (seed depth — 200 projects, real CPM, S-curves) are **done**. What's
+left of the original list:*
+
+1. **Enable CI auto-deploy** (optional): move `docs/deploy/github-actions-deploy.yml` →
    `.github/workflows/deploy.yml` using a `workflow`-scoped token; set the 4 repo secrets.
-3. **Enable pg_cron** on the cloud project + reschedule `refresh_all_kpis()` / `snapshot_kpis()` /
-   `kg_reproject_all()` (migration 009 patterns; enable the extension first).
-4. **`kg_query` text-to-SQL** tool with the safety harness (clayos_readonly role, single-SELECT
+2. **`kg_query` text-to-SQL** tool with the safety harness (clayos_readonly role, single-SELECT
    validation, statement_timeout) — currently NOT in the tool registry.
-5. **RLS scoping** by role (field user vs exec) + per-turn world-state tuning.
-6. Deepen seed coverage (WIP/backlog/utilization dashboards, kpi_history trend charts).
+3. **RLS scoping** by role (field user vs exec) + per-turn world-state tuning.
 
 ## How to deploy right now (no CI)
 - **Frontend:** `cd app && npm run build && npx wrangler pages deploy dist --project-name=clayos`
@@ -459,7 +481,12 @@ cloud infra is now provisioned, seeded, embedded, and deployed.)*
 3. `docs/INFRA.md` has all infra/credential pointers (Supabase, Cloudflare, n8n, secrets, VPS).
 4. Reusable source patterns live in the sibling repo `/home/clawd/projects/counterpart`
    (OrgMapAI). Key files to copy/adapt are listed in `docs/ARCHITECTURE.md` §"Reuse map".
-5. Pick up at "Next actions" above.
+5. **Before changing UI, re-run the three harnesses** so you know what was already green:
+   `cd app && npx vite preview --port 4181 --strictPort &` then
+   `node verify-time.mjs http://localhost:4181` (also `verify-map.mjs`, `verify-analytics.mjs`).
+   They drive `/snap/bin/chromium` over CDP — the box-specific gotchas are in the session-13/15
+   blocks above and will cost an hour if rediscovered from scratch.
+6. Pick up at "Next actions" above.
 
 ## Maintenance convention
 
