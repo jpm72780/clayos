@@ -163,6 +163,14 @@ export async function scheduleDependencies() {
     .select("id,predecessor_id,successor_id,dep_type,lag_days").order("id"));
 }
 
+// Which projects carry real (non-summary) activity detail — used to offer a way
+// INTO one from views that can't show anything useful for the long tail.
+export async function detailedProjectIds() {
+  const rows = await fetchAllRows(() => supabase.from("schedule_activities")
+    .select("project_id").eq("is_summary", false).order("project_id").order("id"));
+  return [...new Set(rows.map((r) => r.project_id))];
+}
+
 export async function projectPhases() {
   return fetchAllRows(() => supabase.from("phases")
     .select("id,project_id,name,seq,start_date,end_date,status")

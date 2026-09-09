@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   ReferenceLine, CartesianGrid, Legend, AreaChart, Area,
 } from "recharts";
-import { costCurve, kpiHistory, projectSchedule, listBusinessUnits } from "../lib/api.js";
+import { costCurve, kpiHistory, projectSchedule, listBusinessUnits, detailedProjectIds } from "../lib/api.js";
 import { chartColor } from "../lib/palette.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
 import { defOf } from "../lib/glossary.js";
@@ -27,7 +27,28 @@ export default function TrendsView({ businessUnit, focus, setFocus }) {
   const [bus, setBus] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { projectSchedule().then(setProjects).catch(() => setProjects([])); listBusinessUnits().then(setBus); }, []);
+  const [detailIds, setDetailIds] = useState([]);
+  useEffect(() => {
+    projectSchedule().then(setProjects).catch(() => setProjects([]));
+    listBusinessUnits().then(setBus);
+    detailedProjectIds().then(setDetailIds).catch(() => setDetailIds([]));
+  }, []);
+
+  // Offer a way INTO a project that actually has a monthly series — preferring one
+  // in the same business unit as whatever is focused now.
+  const suggestion = useMemo(() => {
+    const detailed = projects.filter((p) => detailIds.includes(p.id));
+    if (!detailed.length) return null;
+    const cur = focus?.pid ? projects.find((p) => p.id === focus.pid) : null;
+    return detailed.find((p) => cur && p.business_unit_id === cur.business_unit_id) || detailed[0];
+  }, [projects, detailIds, focus]);
+
+  const GoToDetailed = () => suggestion ? (
+    <button onClick={() => setFocus?.({ pid: suggestion.id, name: suggestion.name, code: suggestion.code })}
+      className="mt-3 text-[11px] px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20">
+      Show me {suggestion.code} — {suggestion.name} →
+    </button>
+  ) : null;
 
   useEffect(() => {
     let dead = false;
@@ -107,6 +128,7 @@ export default function TrendsView({ businessUnit, focus, setFocus }) {
             <div>
               <div>Monthly cost history is tracked per project.</div>
               <div className="text-white/30 mt-1">Pick a project — from the schedule, the map, or the chat — to see its S-curve.</div>
+              <GoToDetailed />
             </div>
           </div>
         ) : loading ? (
@@ -115,7 +137,10 @@ export default function TrendsView({ businessUnit, focus, setFocus }) {
           <div className="h-56 grid place-items-center text-center text-white/45 text-xs px-6">
             <div>
               <div>{scopeLabel} has only a single cost period recorded.</div>
-              <div className="text-white/30 mt-1">A curve needs a monthly series — the detailed projects carry one.</div>
+              <div className="text-white/30 mt-1">
+                A curve needs a monthly series. {detailIds.length} of {projects.length} projects carry one.
+              </div>
+              <GoToDetailed />
             </div>
           </div>
         ) : (

@@ -10,7 +10,7 @@
 **John's ask:** every node carries a date (schedule activities, transaction dates, write dates) —
 make a filterable time view: Gantt schedules, transaction history, etc.
 
-**Shipped** (`verify-time.mjs` 24/24 + map 13/13 + analytics 13/13, all against prod):
+**Shipped** (`verify-time.mjs` 30/30 + map 13/13 + analytics 13/13, all against prod):
 a 4th top-level tab with three modes, plus a time range that acts as a third cross-cutting
 filter beside project-focus and highlight.
 
@@ -65,6 +65,19 @@ deriveActivityStatus, WINDOWS lifted out of Lifecycle3DView), date formatters in
   label renders uppercase. Match chip content, not label casing.
 - Synthetic `new MouseEvent(...)` without `view: window` throws inside d3 (`event.view.document`);
   drive real input with `page.mouse.*` in harnesses.
+
+**Follow-up — "how do i get to a detailed project?"** John hit a dead end I built: with a light
+project focused, Trends says a curve needs a monthly series and *"the detailed projects carry
+one"* — while offering no route to one of the 8. Only 4% of the portfolio has that grain, so
+every view that can't render for the other 96% now has to hand you a way in.
+- `api.detailedProjectIds()` — the projects with non-summary activity rows.
+- **Trends** empty states get a *"Show me CRG-100 — The Cubes at Stateline →"* button that sets
+  the shared focus, preferring a detailed project in the *same business unit* as whatever is
+  focused now, so the jump doesn't throw away the user's context.
+- **Schedule** — the `activity detail: 8 of 200` stat is now a toggle that filters the Gantt to
+  exactly those 8. It was already telling the truth; it just wasn't actionable.
+- Harness grew 24 → **30 checks**: a light project must offer the jump, the jump must produce a
+  real 3-area S-curve, and the Gantt filter must land on exactly the deep set.
 
 ---
 

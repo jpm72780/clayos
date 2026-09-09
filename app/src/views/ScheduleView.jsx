@@ -43,6 +43,9 @@ export default function ScheduleView({ businessUnit, focus, setFocus, range, set
   const [evm, setEvm] = useState([]);
   const [err, setErr] = useState(null);
   const [groupBy, setGroupBy] = useState("none");
+  // Only 8 of 200 projects carry activity-level detail; the rest are summary-grain.
+  // Make that count a filter so the deep schedules are one click away, not a hunt.
+  const [detailOnly, setDetailOnly] = useState(false);
   const [sortBy, setSortBy] = useState("start");
   const [colorBy, setColorBy] = useState("bu");
   const [showLogic, setShowLogic] = useState(true);
@@ -93,8 +96,9 @@ export default function ScheduleView({ businessUnit, focus, setFocus, range, set
     return counts;
   }, [acts, now]);
 
-  const inScope = (p) => !businessUnit || p.business_unit_id === businessUnit;
-  const scoped = useMemo(() => projects.filter(inScope), [projects, businessUnit]); // eslint-disable-line
+  const inScope = (p) => (!businessUnit || p.business_unit_id === businessUnit)
+    && (!detailOnly || detailPids.has(p.id));
+  const scoped = useMemo(() => projects.filter(inScope), [projects, businessUnit, detailOnly, detailPids]); // eslint-disable-line
 
   // ── time domain ────────────────────────────────────────────────────────────
   const extent = useMemo(
@@ -196,9 +200,20 @@ export default function ScheduleView({ businessUnit, focus, setFocus, range, set
           <span className="text-white font-medium">{scoped.length}</span> projects ·{" "}
           <span className="text-white font-medium">{fmt$(scoped.reduce((s, p) => s + (num(p.contract_value) || 0), 0))}</span>
         </span>
-        <span className="text-white/35 text-[10px] max-md:hidden">
-          activity detail: {detailPids.size} of {projects.length} · {acts.length.toLocaleString()} bars
-        </span>
+        <button
+          onClick={() => setDetailOnly((v) => !v)}
+          disabled={!detailPids.size}
+          data-testid="detail-only"
+          title={detailOnly
+            ? "Showing only projects with activity-level schedules — click to show all"
+            : "Show only the projects that carry activity-level detail"}
+          className={`text-[10px] px-2 py-0.5 rounded border transition-colors max-md:hidden ${
+            detailOnly
+              ? "border-amber-500/40 bg-amber-500/15 text-amber-200"
+              : "border-white/10 text-white/35 hover:text-white/60 hover:border-white/20"}`}>
+          activity detail: {detailPids.size} of {projects.length}
+          {detailOnly ? " ✕" : ""} · {acts.length.toLocaleString()} bars
+        </button>
         <Picker label="Color" value={colorBy} onChange={setColorBy}
           opts={[["bu", "Business unit"], ["stage", "Stage"], ["health", "Cost health"], ["schedule", "Schedule health"]]} />
         <Picker label="Group" value={groupBy} onChange={setGroupBy}

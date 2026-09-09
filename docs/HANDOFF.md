@@ -9,7 +9,7 @@
 ---
 
 ## ⚡ Session 15 — Clayco Time (read this first)
-A 4th top-level tab with three modes, **live** (`verify-time.mjs` 24/24, map + analytics 13/13 each,
+A 4th top-level tab with three modes, **live** (`verify-time.mjs` 30/30, map + analytics 13/13 each,
 all against prod): **Schedule** (portfolio Gantt of 200 projects → expand for activities with
 baseline / % complete / hatched float / milestones / FS logic), **History** (4,671 dated records:
 stacked histogram + per-type swimlanes + detail list; drag the top band to set the range) and
@@ -34,6 +34,14 @@ Entities 6,345 → 6,441; client limit raised to 8,000 in both call sites.
 
 **Fixed en route:** `kpiHistory()` was unpaged, so the Analytics trend chart had been silently
 plotting 1,000 of ~7,800 rows.
+
+**Discoverability follow-up.** Only **8 of 200** projects carry activity/monthly grain, so a view
+that can't render for the other 192 must offer a route into one — otherwise the honest empty state
+is a dead end (John hit exactly this on Trends). `api.detailedProjectIds()` backs both fixes: the
+Trends empty states show a *"Show me CRG-100 — …"* jump button (preferring a detailed project in
+the same BU as the current focus), and the Gantt's `activity detail: 8 of 200` stat is now a toggle
+that filters to those 8. **Rule for any new view: never state a data limitation without an
+affordance past it.**
 
 **New gotchas:** `new Date("YYYY-MM-DD")` is UTC and renders a day early west of Greenwich — use
 `lib/time.js#parseDay`. d3-zoom calls `stopImmediatePropagation` on mousedown, so React's delegated

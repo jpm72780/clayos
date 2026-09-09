@@ -3,7 +3,7 @@
 // puppeteer's launcher, and the profile dir must be a NON-hidden $HOME path
 // (AppArmor denies dot-dirs). Port 9337 — 9333/9335 belong to the other suites.
 import puppeteer from "puppeteer-core";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import os from "node:os";
@@ -172,6 +172,59 @@ async function poll(page, fn, timeout = 30000) {
   await page.screenshot({ path: join(SHOTS, "time-trends.png") });
   check("trends: zero runtime exceptions", page.errors.length === 0, page.errors.slice(0, 2).join(" | "));
   await page.close();
+}
+
+// ── Getting to a detailed project ────────────────────────────────────────────
+// Only 8 of 200 projects carry activity/monthly detail. Both views that can't
+// show anything useful for the other 192 must offer a route into one.
+{
+  const env = Object.fromEntries(readFileSync(join(import.meta.dirname, ".env"), "utf8")
+    .split("\n").filter((l) => l.includes("=")).map((l) => {
+      const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+    }));
+  const rest = (path) => fetch(`${env.VITE_SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${env.VITE_SUPABASE_ANON_KEY}`,
+      "Accept-Profile": "clayos" },
+  }).then((r) => r.json());
+
+  const deep = new Set((await rest("schedule_activities?select=project_id&is_summary=eq.false")).map((r) => r.project_id));
+  const projects = await rest("projects?select=id,code,name&order=code");
+  const light = projects.find((p) => !deep.has(p.id));
+  check("fixture: a light project exists", !!light && deep.size > 0, `${deep.size} deep / ${projects.length} total`);
+
+  // Trends — the exact dead end John hit: a light project, no curve, no way out.
+  const page = await newPage(1440, 900);
+  await page.goto(`${BASE}/#${hash({ tab: "time", timeMode: "trends", focus: { pid: light.id, name: light.name, code: light.code } })}`,
+    { waitUntil: "domcontentloaded" });
+  const jump = await poll(page, () => {
+    const b = [...document.querySelectorAll("button")].find((x) => x.textContent.startsWith("Show me "));
+    return b ? b.textContent.trim() : null;
+  });
+  check("trends: light project offers a way into a detailed one", !!jump, jump || "no button");
+
+  if (jump) {
+    await page.evaluate(() => [...document.querySelectorAll("button")].find((x) => x.textContent.startsWith("Show me ")).click());
+    await sleep(2500);
+    check("trends: jumping renders an actual S-curve",
+      await page.evaluate(() => document.querySelectorAll("svg .recharts-area").length >= 3),
+      await page.evaluate(() => `${document.querySelectorAll("svg .recharts-area").length} areas`));
+  }
+  await page.screenshot({ path: join(SHOTS, "time-trends-jump.png") });
+  check("trends jump: zero runtime exceptions", page.errors.length === 0, page.errors.slice(0, 2).join(" | "));
+  await page.close();
+
+  // Schedule — the detail count is a filter, not just a stat.
+  const g = await newPage(1440, 900);
+  await g.goto(`${BASE}/#${hash({ tab: "time", timeMode: "schedule" })}`, { waitUntil: "domcontentloaded" });
+  await poll(g, () => document.querySelectorAll('[data-kind="project"]').length >= 20 || null);
+  await sleep(800);
+  await g.click('[data-testid="detail-only"]');
+  await sleep(800);
+  const shown = await g.evaluate(() => Number(document.querySelector("[data-total-rows]")?.getAttribute("data-total-rows") || 0));
+  check("schedule: detail-count filters to the deep projects", shown === deep.size, `${shown} rows vs ${deep.size} deep`);
+  await g.screenshot({ path: join(SHOTS, "time-schedule-detailonly.png") });
+  check("schedule filter: zero runtime exceptions", g.errors.length === 0, g.errors.slice(0, 2).join(" | "));
+  await g.close();
 }
 
 // ── Mobile ───────────────────────────────────────────────────────────────────
