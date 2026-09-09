@@ -13,6 +13,7 @@ lifecycle, with two fully-detailed active data-center projects:
 The script ends by rebuilding the graph (kg_reproject_all) and KPIs.
 """
 import datetime as dt
+import os
 import random
 import sys
 import uuid
@@ -21,7 +22,11 @@ random.seed(42)
 NS = uuid.UUID("c1a17005-0000-4000-8000-000000000000")
 def uid(*parts): return str(uuid.uuid5(NS, ":".join(str(p) for p in parts)))
 
-TODAY = dt.date(2026, 6, 27)
+# The whole dataset is anchored to this date, and every record drifts further
+# into the past the longer it goes un-bumped — which the Time view makes very
+# visible (the daily-log stream simply stops here). Bump it on each reseed;
+# override for a reproducible build with CLAYOS_SEED_TODAY=YYYY-MM-DD.
+TODAY = dt.date.fromisoformat(os.environ.get("CLAYOS_SEED_TODAY", "2026-09-09"))
 def days(n): return TODAY + dt.timedelta(days=n)
 def months_back(n):  # month-end ~ n months before today
     d = TODAY.replace(day=1)
@@ -233,13 +238,8 @@ insert("projects", ["id", "business_unit_id", "code", "name", "sector", "lifecyc
 
 # ─── Phases (all projects) ───────────────────────────────────────────────────
 PHASES = ["Preconstruction", "Foundations", "Structure", "Enclosure", "MEP Rough-In", "Fit-Out", "Commissioning"]
-ph_rows = []
-for p in PROJ:
-    for seq, name in enumerate(PHASES):
-        ph_rows.append(dict(id=uid("phase", p["key"], name), project_id=p["id"], name=name, seq=seq,
-                           status="complete" if (p["earned"] > (seq + 1) / len(PHASES)) else
-                                  ("active" if p["earned"] > seq / len(PHASES) else "planned")))
-insert("phases", ["id", "project_id", "name", "seq", "status"], ph_rows)
+# Phase rows are emitted further down — their date windows are derived from the
+# CPM schedule below, so they can't be built until the activities exist.
 
 # ─── WBS + cost accounts + cost progress + schedule + billing (deep projects) ─
 WBS_TEMPLATE = [  # (code, name, masterformat division, cost_type, bac_fraction)
@@ -255,6 +255,88 @@ WBS_TEMPLATE = [  # (code, name, masterformat division, cost_type, bac_fraction)
     ("10", "Interiors & Finishes", "09 00 00", "subcontract", 0.05),
     ("11", "Commissioning", "01 00 00", "labor", 0.05),
 ]
+
+# ─── Schedule shape: trade durations + a real dependency network ──────────────
+# Durations are fractions of each project's OWN span, so a 14-month fit-out and a
+# 4-year data centre don't get identical bars. The network is a genuine, non-serial
+# FS graph — foundations feed both structure and underground MEP; enclosure and
+# rough-in overlap — so the critical path and total float fall out of a CPM pass
+# rather than being asserted. (The old seed hard-coded is_critical on four
+# disconnected bars of a purely serial chain, which is impossible: a serial chain
+# is either all-critical or has one continuous critical run.)
+# General Conditions is a hammock over the whole job and sits outside the network.
+TRADE_DUR = {"01": 1.00, "02": 0.16, "03": 0.26, "04": 0.28, "05": 0.26,
+             "06": 0.20, "07": 0.38, "08": 0.36, "09": 0.18, "10": 0.24, "11": 0.09}
+TRADE_DEPS = {  # predecessor -> [(successor, lag_days)]
+    "02": [("03", 0)],
+    "03": [("04", 0), ("07", 10)],
+    "04": [("05", 0), ("08", 5)],
+    "05": [("06", 0), ("09", 5)],
+    "06": [("10", 0)], "07": [("10", 0)], "08": [("10", 0)], "09": [("10", 0)],
+    "10": [("11", 5)],
+}
+HAMMOCK = "01"
+PHASE_TRADES = {"Foundations": ["02", "03"], "Structure": ["04"],
+                "Enclosure": ["05", "06"], "MEP Rough-In": ["07", "08", "09"],
+                "Fit-Out": ["10"], "Commissioning": ["11"]}
+MILESTONES = [("Notice to Proceed", "02", "start"), ("Foundations Complete", "03", "finish"),
+              ("Topping Out", "04", "finish"), ("Building Dry-In", "05", "finish"),
+              ("Substantial Completion", "11", "finish")]
+
+def scurve(t):
+    """Smoothstep. Cumulative-progress shape for cost and billing curves: slow
+    mobilisation, steep middle, tapering closeout. scurve(0)=0, scurve(1)=1 —
+    the endpoints are exact, so final-period totals (and the EVM goldens that
+    read them) are identical to the old linear ramp."""
+    return t * t * (3 - 2 * t)
+
+def cpm(span_days, lead_frac=0.08):
+    """Forward + backward pass over TRADE_DEPS, scaled to fill `span_days` with a
+    preconstruction lead reserved at the front. Returns
+    {code: {es, ef, float_days, critical}} in whole days from project start.
+    Trade codes sort topologically ("02" before "03" before "04"…), so the passes
+    can walk them in sorted order without a separate toposort."""
+    lead = span_days * lead_frac
+    work = max(1.0, span_days - lead)
+    net = [c for c in sorted(TRADE_DUR) if c != HAMMOCK]
+    dur = {c: max(5.0, TRADE_DUR[c] * work) for c in net}
+    pred, succ = {c: [] for c in net}, {c: [] for c in net}
+    for a, links in TRADE_DEPS.items():
+        for b, lag in links:
+            succ[a].append((b, lag)); pred[b].append((a, lag))
+    es, ef = {}, {}
+    for c in net:                                     # forward pass — earliest
+        es[c] = max([ef[a] + lag for a, lag in pred[c]] or [0.0])
+        ef[c] = es[c] + dur[c]
+    finish = max(ef.values())
+    ls, lf = {}, {}
+    for c in reversed(net):                           # backward pass — latest
+        lf[c] = min([ls[b] - lag for b, lag in succ[c]] or [finish])
+        ls[c] = lf[c] - dur[c]
+    k = work / finish if finish else 1.0              # fit the network to the span
+    out = {c: dict(es=round(lead + es[c] * k), ef=round(lead + ef[c] * k),
+                   float_days=max(0, round((ls[c] - es[c]) * k)),
+                   critical=(ls[c] - es[c]) < 0.5) for c in net}
+    out[HAMMOCK] = dict(es=0, ef=round(span_days), float_days=0, critical=False)
+    return out
+
+# One CPM run per deep project, shared by the phase, activity and milestone rows.
+SCHED = {p["key"]: cpm(float(p["end"] - p["start"])) for p in PROJ}
+
+# ─── Phases — real date windows, derived from the CPM schedule ───────────────
+ph_rows = []
+for p in PROJ:
+    s = SCHED[p["key"]]
+    for seq, name in enumerate(PHASES):
+        codes = PHASE_TRADES.get(name)
+        st, en = ((min(s[c]["es"] for c in codes), max(s[c]["ef"] for c in codes))
+                  if codes else (0, s["02"]["es"]))          # Preconstruction leads
+        ph_rows.append(dict(id=uid("phase", p["key"], name), project_id=p["id"], name=name, seq=seq,
+                           start_date=days(p["start"] + st), end_date=days(p["start"] + en),
+                           status="complete" if (p["earned"] > (seq + 1) / len(PHASES)) else
+                                  ("active" if p["earned"] > seq / len(PHASES) else "planned")))
+insert("phases", ["id", "project_id", "name", "seq", "start_date", "end_date", "status"], ph_rows)
+
 wbs_rows, ca_rows, cp_rows, act_rows, dep_rows = [], [], [], [], []
 payapp_rows, payline_rows, contract_rows = [], [], []
 SUB_FOR = {"03 00 00": "concrete-strategies", "31 00 00": "titan-earth", "05 00 00": "ideal-steel",
@@ -274,26 +356,43 @@ def build_project_controls(p, full):
         ca_rows.append(dict(id=caid, project_id=p["id"], wbs_node_id=wid, masterformat_code_id=mf_id.get(mfdiv),
                            name=name, cost_type=ctype, bac=bac, committed=round(bac * 0.95)))
         for i, per in enumerate(periods):
-            frac_t = (i + 1) / len(periods)
+            # S-curve, not a linear ramp: real jobs mobilise slowly, burn hard
+            # through the middle and taper. scurve(1)=1, so the final period —
+            # the one kpi_evm reads — is unchanged.
+            frac_t = scurve((i + 1) / len(periods))
             pv = round(bac * p["planned"] * frac_t, 2)
             ev = round(bac * p["earned"] * frac_t, 2)
             ac = round(ev / p["cpi"], 2) if p["cpi"] else ev
             cp_rows.append(dict(id=uid("cp", p["key"], code, i), cost_account_id=caid, period=per,
                                pv=pv, ev=ev, ac=ac))
         if full:
+            sc = SCHED[p["key"]][code]
             aid = uid("act", p["key"], code)
-            pct = max(0, min(100, round(p["earned"] * 100 + random.randint(-8, 8))))
+            a_start = days(p["start"] + sc["es"])
+            a_finish = days(p["start"] + sc["ef"])
+            # Progress = how far through the bar we are, scaled by the project's
+            # schedule performance (earned/planned). A behind-schedule job then
+            # reads behind on every bar, instead of every bar sitting at the
+            # project average ±8%.
+            perf = (p["earned"] / p["planned"]) if p["planned"] else 1.0
+            span = max(1, (a_finish - a_start).days)
+            pct = round(100 * min(1.0, max(0.0, (TODAY - a_start).days / span)) * min(1.15, perf))
+            pct = max(0, min(100, pct))
+            started, done = (a_start <= TODAY and pct > 0), pct >= 100
             act_rows.append(dict(id=aid, project_id=p["id"], wbs_node_id=wid, activity_code=f"A{code}0",
-                                name=name, planned_start=days(p["start"] + idx * 40),
-                                planned_finish=days(p["start"] + idx * 40 + 60),
-                                actual_start=days(p["start"] + idx * 40 + random.randint(0, 10)),
-                                actual_finish=days(p["start"] + idx * 40 + 60 + random.randint(-3, 20)) if pct >= 100 else None,
-                                pct_complete=pct, is_critical=(idx in (2, 3, 6, 7)),
-                                total_float_days=0 if idx in (2, 3, 6, 7) else random.randint(2, 18)))
-            if prev_act:
-                dep_rows.append(dict(id=uid("dep", p["key"], code), predecessor_id=prev_act,
-                                    successor_id=aid, dep_type="FS", lag_days=random.choice([0, 0, 5])))
-            prev_act = aid
+                                name=name, planned_start=a_start, planned_finish=a_finish,
+                                # Actuals only where the work has actually happened. The old seed
+                                # stamped actual_start on every bar including ones planned into
+                                # 2027, which reads as "started" on a Gantt.
+                                actual_start=min(a_start + dt.timedelta(days=random.randint(0, 6)), TODAY) if started else None,
+                                actual_finish=min(a_finish + dt.timedelta(days=random.randint(-4, 12)), TODAY) if done else None,
+                                pct_complete=pct, is_critical=sc["critical"],
+                                total_float_days=sc["float_days"],
+                                activity_kind="task", is_summary=False))
+            for succ_code, lag in TRADE_DEPS.get(code, []):
+                dep_rows.append(dict(id=uid("dep", p["key"], code, succ_code), predecessor_id=aid,
+                                    successor_id=uid("act", p["key"], succ_code),
+                                    dep_type="FS", lag_days=lag))
         # subcontract per trade
         sub = SUB_FOR.get(mfdiv)
         if sub:
@@ -301,28 +400,48 @@ def build_project_controls(p, full):
                                      org_id=org[sub], contract_type="subcontract",
                                      masterformat_code_id=mf_id.get(mfdiv), value=round(bac * 0.95),
                                      executed_date=days(p["start"] + 30), status="executed", scope=name))
-    # billing: one latest pay app with lines
+    # milestones — zero-duration markers hung off the CPM schedule
+    if full:
+        for mname, mcode, anchor in MILESTONES:
+            sc = SCHED[p["key"]][mcode]
+            md = days(p["start"] + (sc["es"] if anchor == "start" else sc["ef"]))
+            hit = md <= TODAY
+            act_rows.append(dict(id=uid("ms", p["key"], mname), project_id=p["id"], wbs_node_id=None,
+                                activity_code=f"M{mcode}", name=mname, planned_start=md, planned_finish=md,
+                                actual_start=md if hit else None, actual_finish=md if hit else None,
+                                pct_complete=100 if hit else 0, is_critical=sc["critical"],
+                                total_float_days=0, activity_kind="milestone", is_summary=False))
+
+    # billing: a monthly pay-app series (1..N) instead of one orphaned app #6.
+    # The final app carries exactly the totals the single app used to, so kpi_wip
+    # (and the over/under-billing goldens) are unchanged.
     earned_rev = p["value"] * p["earned"]
     billings = earned_rev * p["bill_factor"]
-    paid = uid("payapp", p["key"], 6)
-    payapp_rows.append(dict(id=paid, project_id=p["id"], number=6, period_end=months_back(0),
-                           status="approved", submitted_date=months_back(0), approved_date=days(-10)))
-    for code, name, mfdiv, ctype, frac in WBS_TEMPLATE:
-        sv = round(bac_total * frac)
-        wc = round(billings * frac, 2)
-        payline_rows.append(dict(id=uid("payline", p["key"], code), pay_app_id=paid,
-                                cost_account_id=uid("ca", p["key"], code), description=name,
-                                scheduled_value=sv, work_completed_this_period=round(wc * 0.15, 2),
-                                work_completed_to_date=wc, materials_stored=0,
-                                retainage_pct=5.0, retainage_amount=round(wc * 0.05, 2)))
+    for i, per in enumerate(periods):
+        n = i + 1
+        cum, prev = scurve((i + 1) / len(periods)), (scurve(i / len(periods)) if i else 0.0)
+        paid = uid("payapp", p["key"], n)
+        payapp_rows.append(dict(id=paid, project_id=p["id"], number=n, period_end=per,
+                               status="approved", submitted_date=per,
+                               approved_date=min(per + dt.timedelta(days=12), TODAY)))
+        for code, name, mfdiv, ctype, frac in WBS_TEMPLATE:
+            wc = round(billings * frac * cum, 2)
+            payline_rows.append(dict(id=uid("payline", p["key"], n, code), pay_app_id=paid,
+                                    cost_account_id=uid("ca", p["key"], code), description=name,
+                                    scheduled_value=round(bac_total * frac),
+                                    work_completed_this_period=round(billings * frac * (cum - prev), 2),
+                                    work_completed_to_date=wc, materials_stored=0,
+                                    retainage_pct=5.0, retainage_amount=round(wc * 0.05, 2)))
 
 for p in PROJ:
     build_project_controls(p, full=p["deep"])
 insert("wbs_nodes", ["id", "project_id", "parent_id", "code", "name", "code_id"], wbs_rows)
 insert("cost_accounts", ["id", "project_id", "wbs_node_id", "masterformat_code_id", "name", "cost_type", "bac", "committed"], ca_rows)
 insert("cost_progress", ["id", "cost_account_id", "period", "pv", "ev", "ac"], cp_rows)
-insert("schedule_activities", ["id", "project_id", "wbs_node_id", "activity_code", "name", "planned_start",
-                               "planned_finish", "actual_start", "actual_finish", "pct_complete", "is_critical", "total_float_days"], act_rows)
+SCHED_COLS = ["id", "project_id", "wbs_node_id", "activity_code", "name", "planned_start",
+              "planned_finish", "actual_start", "actual_finish", "pct_complete", "is_critical",
+              "total_float_days", "activity_kind", "is_summary"]
+insert("schedule_activities", SCHED_COLS, act_rows)
 insert("schedule_dependencies", ["id", "predecessor_id", "successor_id", "dep_type", "lag_days"], dep_rows)
 insert("contracts", ["id", "project_id", "org_id", "contract_type", "masterformat_code_id", "value", "executed_date", "status", "scope"], contract_rows)
 insert("pay_apps", ["id", "project_id", "number", "period_end", "status", "submitted_date", "approved_date"], payapp_rows)
@@ -591,7 +710,7 @@ SUB_POOL = sorted(set(SUB_FOR.values()))
 owner_pool = [s for s, _, t in LIGHT_OWNERS] + ["hyperscale", "midwest-reit", "biogen", "riverside-dev"]
 
 lp_rows, lca_rows, lcp_rows, lpa_rows, lpl_rows, lct_rows = [], [], [], [], [], []
-lrfi_rows, llog_rows, lsafe_rows, lhist_rows = [], [], [], []
+lrfi_rows, llog_rows, lsafe_rows, lhist_rows, lact_rows = [], [], [], [], []
 counters = {}
 LIGHT = []
 for bu_slug, sector, prefix, count, (vlo, vhi) in LIGHT_MIX:
@@ -673,6 +792,31 @@ for p in LIGHT:
                              value=round(bac_total * LR.uniform(0.08, 0.22)),
                              executed_date=days(p["start"] + 30), status="executed",
                              scope=f"Trade package — {sub.replace('-', ' ')}"))
+    # Summary-level schedule so the Gantt covers the whole portfolio, not just
+    # the 8 detailed jobs. is_summary=True keeps these RELATIONAL ONLY — migration
+    # 015's guard stops them becoming graph nodes, which would blow the ~6.5k
+    # subgraph budget and silently truncate the 3D/Network views.
+    lspan = max(30, p["end"] - p["start"])
+    lperf = min(1.15, p["earned"] / max(p["planned"], 0.01))
+    for si, (code, cname, mfdiv, ctype, frac) in enumerate(LIGHT_WBS):
+        a_start = days(p["start"] + round(lspan * si * 0.22))
+        a_finish = days(min(p["start"] + round(lspan * (si * 0.22 + 0.34)), p["end"]))
+        sp = max(1, (a_finish - a_start).days)
+        pct = max(0, min(100, round(100 * min(1.0, max(0.0, (TODAY - a_start).days / sp)) * lperf)))
+        lact_rows.append(dict(id=uid("lact", p["key"], code), project_id=p["id"], wbs_node_id=None,
+                             activity_code=f"S{code}", name=cname, planned_start=a_start,
+                             planned_finish=a_finish,
+                             actual_start=a_start if (a_start <= TODAY and pct > 0) else None,
+                             actual_finish=a_finish if (pct >= 100 and a_finish <= TODAY) else None,
+                             pct_complete=pct, is_critical=False, total_float_days=0,
+                             activity_kind="task", is_summary=True))
+    msd = days(p["end"])
+    lact_rows.append(dict(id=uid("lact", p["key"], "sc"), project_id=p["id"], wbs_node_id=None,
+                         activity_code="MSC", name="Substantial Completion", planned_start=msd,
+                         planned_finish=msd, actual_start=None, actual_finish=None,
+                         pct_complete=100 if msd <= TODAY else 0, is_critical=False,
+                         total_float_days=0, activity_kind="milestone", is_summary=True))
+
     # RFIs — dates driven by the heat profile (recent = hot)
     lo, hi = p["recency"]
     nrfi = LR.randint(4, 9) if p["stage"] == "construction" else (LR.randint(2, 5) if p["stage"] == "closeout" else LR.randint(0, 3))
@@ -739,6 +883,7 @@ insert("rfis", ["id", "project_id", "number", "subject", "body", "discipline", "
 insert("daily_logs", ["id", "project_id", "log_date", "weather", "temp_high", "temp_low", "manpower_count", "work_performed", "author_person_id"], llog_rows)
 insert("safety_events", ["id", "project_id", "event_date", "type", "severity", "recordable", "lost_time", "description", "corrective_action", "person_id", "location"], lsafe_rows)
 insert("kpi_history", ["id", "snapshot_date", "business_unit_id", "project_id", "metric", "value"], lhist_rows)
+insert("schedule_activities", SCHED_COLS, lact_rows)
 
 # ─── Rebuild graph + KPIs ────────────────────────────────────────────────────
 w("SELECT clayos.kg_reproject_all();")

@@ -3,8 +3,47 @@
 > **Living document.** Update the "Current snapshot" + "Next actions" sections at the
 > end of every working session. This is the single entry point for resuming work.
 
-**Last updated:** 2026-07-31 (session 14 — self-explaining Analytics: KPI guide popovers + chart explain panels, LIVE)
+**Last updated:** 2026-09-09 (session 15 — the "Clayco Time" tab: Gantt + history + EVM curves, LIVE)
 **Updated by:** Claude (Fable 5) session
+
+---
+
+## ⚡ Session 15 — Clayco Time (read this first)
+A 4th top-level tab with three modes, **live** (`verify-time.mjs` 24/24, map + analytics 13/13 each,
+all against prod): **Schedule** (portfolio Gantt of 200 projects → expand for activities with
+baseline / % complete / hatched float / milestones / FS logic), **History** (4,671 dated records:
+stacked histogram + per-type swimlanes + detail list; drag the top band to set the range) and
+**Trends** (PV/EV/AC S-curve + CPI/SPI by month). A **time range is now a third cross-cutting
+filter** beside focus/hl — it scopes the Data table too, and its chip only appears on tabs that
+actually consume it (`RANGE_TABS` in App.jsx).
+
+**The data was reworked first — the old seed made a Gantt indefensible.** Uniform 60-day bars,
+`is_critical` hard-coded on four *disconnected* bars of a serial chain, random float, `actual_start`
+on all 88 rows including 2027-dated ones, no phase dates, one orphan pay app #6. Now the seed runs a
+**real CPM** (`TRADE_DUR` + non-serial `TRADE_DEPS`, forward/backward passes) so critical path and
+float are *derived*; durations scale per project; milestones, phase windows, monthly pay apps and an
+S-curve `cost_progress` were added; and **all 200 projects have schedules** (1,088 rows, was 88).
+Future-dated actuals: 61 → 0. **Evals stayed 6/6 through the reseed** because the S-curve and the
+final pay app preserve final-period totals exactly.
+
+**Migration 015 / ADR-016 — graph budget.** The 960 long-tail summary bars would have blown the
+6,500-node client subgraph limit and silently truncated entity types (session-11 bug). So
+`schedule_activities.is_summary` rows are **relational-only**: the guard lives in `_upsert_entity`
+(the one choke point all projection branches call), so triggers *and* `kg_reproject_all` honour it.
+Entities 6,345 → 6,441; client limit raised to 8,000 in both call sites.
+
+**Fixed en route:** `kpiHistory()` was unpaged, so the Analytics trend chart had been silently
+plotting 1,000 of ~7,800 rows.
+
+**New gotchas:** `new Date("YYYY-MM-DD")` is UTC and renders a day early west of Greenwich — use
+`lib/time.js#parseDay`. d3-zoom calls `stopImmediatePropagation` on mousedown, so React's delegated
+handlers never fire on a zoom-bound element (History brush needs `dragPans: false`). `innerText`
+applies CSS `text-transform`, so don't assert on "Active filter". Synthetic `MouseEvent`s without
+`view: window` throw inside d3 — use `page.mouse.*` in harnesses.
+
+**Re-anchoring the demo clock:** `seed/generate.py` `TODAY` is a constant (now 2026-09-09) with a
+`CLAYOS_SEED_TODAY` env override. Bump it and reseed when the data starts looking stale — the Time
+views make that drift very visible.
 
 ---
 

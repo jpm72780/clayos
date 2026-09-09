@@ -28,7 +28,7 @@ const fmt$ = (n) => fmtMoney(n, { dash: "" });
 const fmtDate = (s) => (s ? new Date(s).toISOString().slice(0, 10) : "");
 const daysAgo = (s) => (s ? (Date.now() - new Date(s).getTime()) / 8.64e7 : Infinity);
 
-export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goToOntology }) {
+export default function DataView({ businessUnit, focus, setFocus, hl, setHl, range, goToOntology }) {
   const [ents, setEnts] = useState(null);
   const [bus, setBus] = useState([]);
   const [projs, setProjs] = useState([]);
@@ -87,6 +87,16 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
 
   // classification highlight scopes the table (vendor/employee highlights don't map to rows)
   const hlClass = hl && (hl.dim === "masterformat" || hl.dim === "uniformat") ? hl : null;
+  // A time range set in the Time views scopes this table too — matched on each
+  // record's own activity date (kg_entity_facts), which is already loaded above.
+  const inRange = (r) => {
+    if (!range?.from && !range?.to) return true;
+    const at = facts.a.get(r.id);
+    if (!at) return false;               // undated records fall outside a time window
+    const d = String(at).slice(0, 10);
+    return (!range.from || d >= range.from) && (!range.to || d <= range.to);
+  };
+
   const matchesHl = (r) => {
     if (!hlClass) return true;
     if (r.csiSystem !== hlClass.dim) return false;
@@ -99,7 +109,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       (!typeF || r.type === typeF) && (!domainF || r.domain === domainF) && (!buF || r.bu === buF) &&
       (!businessUnit || r.bu === (buById.get(businessUnit) || "")) &&
       (!focus || r.pid === focus.pid) && matchesHl(r) &&
-      (!hlNeighbors || hlNeighbors.has(r.id)) &&
+      (!hlNeighbors || hlNeighbors.has(r.id)) && inRange(r) &&
       (!needle || `${r.name} ${r.type} ${r.project} ${r.csi} ${r.status}`.toLowerCase().includes(needle)),
     );
     const { key, dir } = sort;
@@ -109,7 +119,7 @@ export default function DataView({ businessUnit, focus, setFocus, hl, setHl, goT
       return (a || "").toString().localeCompare((b || "").toString()) * dir;
     });
     return out;
-  }, [rows, q, typeF, domainF, buF, businessUnit, buById, focus, hlClass, hlNeighbors, sort]);
+  }, [rows, q, typeF, domainF, buF, businessUnit, buById, focus, hlClass, hlNeighbors, sort, range, facts]);
 
   // quantification over the FILTERED rows — reacts to every filter
   const stats = useMemo(() => {

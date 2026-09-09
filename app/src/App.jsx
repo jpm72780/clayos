@@ -13,12 +13,17 @@ const MapView = lazy(() => import("./views/MapView.jsx"));
 const GraphView = lazy(() => import("./views/GraphView.jsx"));
 const DataView = lazy(() => import("./views/DataView.jsx"));
 const DashboardView = lazy(() => import("./views/DashboardView.jsx"));
+const ScheduleView = lazy(() => import("./views/ScheduleView.jsx"));
+const HistoryView = lazy(() => import("./views/HistoryView.jsx"));
+const TrendsView = lazy(() => import("./views/TrendsView.jsx"));
 
 const TABS = [
   { id: "graph", label: "Clayco Ontology" },
+  { id: "time", label: "Clayco Time" },
   { id: "data", label: "Clayco Data" },
   { id: "dashboard", label: "Clayco Analytics" },
 ];
+const TIME_MODES = [{ id: "schedule", label: "Schedule" }, { id: "history", label: "History" }, { id: "trends", label: "Trends" }];
 
 // restore shared view state from the URL hash so any view is a shareable deep-link
 const initial = (() => { try { const h = location.hash.slice(1); return h ? JSON.parse(decodeURIComponent(atob(h))) : {}; } catch { return {}; } })();
@@ -29,6 +34,10 @@ const modeAlias = (m) => (m === "lifecycle" ? "map" : m);
 export default function App() {
   const [tab, setTab] = useState(initial.tab || "graph");
   const [ontoMode, setOntoMode] = useState(modeAlias(initial.ontoMode) || "3d"); // '3d' | 'map' | 'network'
+  const [timeMode, setTimeMode] = useState(initial.timeMode || "schedule");      // 'schedule'
+  // Time range — a third cross-cutting filter beside focus/hl. {preset, from, to};
+  // `preset: "portfolio"` means fit-to-data, which is the honest default here.
+  const [range, setRange] = useState(initial.range || null);
   const [bus, setBus] = useState([]);
   const [bu, setBu] = useState(null); // selected business_unit_id (null = all)
   const [projects, setProjects] = useState([]);
@@ -56,7 +65,7 @@ export default function App() {
 
   // Build a shareable deep-link to the current view on demand (explicit, not auto-persisted).
   const copyShareLink = () => {
-    const payload = { tab, ontoMode, ...(focus ? { focus } : {}), ...(hl ? { hl } : {}) };
+    const payload = { tab, ontoMode, timeMode, ...(focus ? { focus } : {}), ...(hl ? { hl } : {}), ...(range ? { range } : {}) };
     const url = `${location.origin}${location.pathname}#${btoa(encodeURIComponent(JSON.stringify(payload)))}`;
     navigator.clipboard?.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }, () => {});
   };
@@ -67,8 +76,8 @@ export default function App() {
   // persist ONLY navigational state (which tab / ontology mode) to the URL hash —
   // never the data-scoping filters — so reopening the app always shows full data.
   useEffect(() => {
-    try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode })))); } catch { /* noop */ }
-  }, [tab, ontoMode]);
+    try { history.replaceState(null, "", "#" + btoa(encodeURIComponent(JSON.stringify({ tab, ontoMode, timeMode })))); } catch { /* noop */ }
+  }, [tab, ontoMode, timeMode]);
   // a pasted/edited hash after load re-routes too (replaceState above never fires this,
   // so there is no feedback loop) — same honored-on-arrival semantics as the initial hash
   useEffect(() => {
@@ -78,8 +87,10 @@ export default function App() {
         const v = JSON.parse(decodeURIComponent(atob(h)));
         if (v.tab) setTab(v.tab);
         if (v.ontoMode) setOntoMode(modeAlias(v.ontoMode));
+        if (v.timeMode) setTimeMode(v.timeMode);
         if (v.focus) setFocus(v.focus);
         if (v.hl) setHl(v.hl);
+        if (v.range) setRange(v.range);
       } catch { /* malformed hash — ignore */ }
     };
     window.addEventListener("hashchange", onHash);
@@ -112,6 +123,16 @@ export default function App() {
             ))}
           </div>
         )}
+        {tab === "time" && TIME_MODES.length > 1 && (
+          <div className="flex items-center gap-1 ml-2 bg-white/5 rounded-md p-0.5">
+            {TIME_MODES.map((m) => (
+              <button key={m.id} onClick={() => setTimeMode(m.id)}
+                className={`px-2.5 py-1 max-md:px-3.5 max-md:py-3 rounded text-xs transition ${
+                  timeMode === m.id ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
+                }`}>{m.label}</button>
+            ))}
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <label htmlFor="bu-select" className="text-xs text-white/40 max-md:hidden">Business unit</label>
           <select id="bu-select" aria-label="Filter by business unit" value={bu || ""} onChange={(e) => setBu(e.target.value || null)}
@@ -137,14 +158,17 @@ export default function App() {
           <button onClick={checkHealth} className="ml-auto text-xs px-2 py-1 rounded bg-red-500/20 hover:bg-red-500/30">Retry</button>
         </div>
       )}
-      {(focus || hl) && (
+      {(focus || hl || (range && RANGE_TABS.has(tab))) && (
         <div className="flex items-center gap-2 px-5 py-1.5 border-b border-white/10 bg-amber-500/[0.06] text-xs">
           <span className="text-white/40 uppercase tracking-wide text-[10px]">Active filter</span>
           {focus && <FilterChip onClear={() => setFocus(null)}>Project · {focus.code || focus.name}</FilterChip>}
           {hl && <FilterChip onClear={() => setHl(null)}>{HL_DIM[hl.dim] || "Filter"} · {hl.label || hl.value}</FilterChip>}
-          <button onClick={() => { setFocus(null); setHl(null); }} className="text-amber-300/80 hover:text-amber-200">Clear all</button>
+          {range && RANGE_TABS.has(tab) && (
+            <FilterChip onClear={() => setRange(null)}>Time · {rangeLabel(range)}</FilterChip>
+          )}
+          <button onClick={() => { setFocus(null); setHl(null); setRange(null); }} className="text-amber-300/80 hover:text-amber-200">Clear all</button>
           <button onClick={copyShareLink} title="Copy a link to this exact view" className="text-white/45 hover:text-white/80 border border-white/10 rounded px-2 py-0.5">{copied ? "✓ copied" : "🔗 copy link"}</button>
-          <span className="ml-auto text-white/35">Scope: <span className="text-white/55">{scopeLabel(focus, hl)}</span></span>
+          <span className="ml-auto text-white/35">Scope: <span className="text-white/55">{scopeLabel(focus, hl, range, tab)}</span></span>
         </div>
       )}
       <main id="main" className="flex-1 min-h-0" key={prefsRev}>
@@ -154,7 +178,16 @@ export default function App() {
           )}
           {tab === "graph" && ontoMode === "map" && <MapView businessUnit={bu} focus={focus} setFocus={setFocus} />}
           {tab === "graph" && ontoMode === "network" && <GraphView businessUnit={bu} />}
-          {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} goToOntology={() => setTab("graph")} />}
+          {tab === "time" && timeMode === "schedule" && (
+            <ScheduleView businessUnit={bu} focus={focus} setFocus={setFocus} range={range} setRange={setRange} />
+          )}
+          {tab === "time" && timeMode === "history" && (
+            <HistoryView businessUnit={bu} focus={focus} setFocus={setFocus} range={range} setRange={setRange} />
+          )}
+          {tab === "time" && timeMode === "trends" && (
+            <TrendsView businessUnit={bu} focus={focus} setFocus={setFocus} />
+          )}
+          {tab === "data" && <DataView businessUnit={bu} focus={focus} setFocus={setFocus} hl={hl} setHl={setHl} range={range} goToOntology={() => setTab("graph")} />}
           {tab === "dashboard" && <DashboardView businessUnit={bu} bus={bus} focus={focus} setFocus={setFocus} onAsk={setAskSeed} />}
         </Suspense>
       </main>
@@ -164,8 +197,14 @@ export default function App() {
 }
 
 const HL_DIM = { masterformat: "MasterFormat", uniformat: "UniFormat", vendor: "Vendor", employee: "Employee" };
-const scopeLabel = (focus, hl) =>
-  [focus ? "1 project" : null, hl ? "highlight slice" : null].filter(Boolean).join(" · ") || "whole portfolio";
+// Tabs that actually consume the time range. The chip only shows on these — a
+// filter chip that silently scoped nothing is exactly the footgun this bar exists
+// to prevent.
+const RANGE_TABS = new Set(["time", "data"]);
+const rangeLabel = (r) => (r?.from && r?.to ? `${r.from} → ${r.to}` : r?.preset || "custom");
+const scopeLabel = (focus, hl, range, tab) =>
+  [focus ? "1 project" : null, hl ? "highlight slice" : null,
+   range && RANGE_TABS.has(tab) ? "time window" : null].filter(Boolean).join(" · ") || "whole portfolio";
 
 function FilterChip({ children, onClear }) {
   return (

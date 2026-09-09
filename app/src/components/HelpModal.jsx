@@ -16,6 +16,17 @@ const HELP = {
     ],
     foot: "3D · Map · Network are three views of the same data — switch with the toggle in the header.",
   },
+  time: {
+    title: "Clayco Time",
+    blurb: "Everything Clayco knows, arranged by when it happened or when it's due.",
+    points: [
+      ["Schedule is a Gantt", "one bar per project across the portfolio. Click the arrow beside a detailed project to open its activities, with the critical path in red, total float hatched behind each bar, and finish-to-start links drawn between them."],
+      ["History is the transaction record", "every RFI, daily log, contract, pay application, safety and quality event on one axis. Drag across the top band to select a period — that selection also filters the Data table."],
+      ["Trends shows the money over time", "planned value, earned value and actual cost for a focused project. Where those three lines separate is the whole cost story."],
+      ["Dates you can trust", "actual start and finish dates are only drawn when they don't contradict the reported progress. Anything suppressed is counted in the \u201cdata notes\u201d chip rather than quietly hidden."],
+    ],
+    foot: "Detailed activity schedules exist for the 8 fully-modelled projects; the rest carry a summary-level schedule.",
+  },
   data: {
     title: "Clayco Data",
     blurb: "Every node in the ontology as one sortable, filterable table.",

@@ -96,6 +96,66 @@ export const KPI_GUIDE = {
     good: "Reviewed and approved ahead of when the material is needed on site.",
     bad: "Stuck in review — materials can't be ordered or installed, which quietly pushes the schedule.",
   },
+  "Total float": {
+    name: "Total float",
+    what: "How long an activity can slip before it starts pushing the project's finish date. Calculated, not chosen: it's the gap between the earliest an activity could run and the latest it could run without causing a delay.",
+    good: "Some float on most activities — the schedule has slack absorb the normal surprises without the end date moving.",
+    bad: "Zero float everywhere means every single task is now driving the finish date, so any hiccup delays the job. Negative float means the schedule is already late against its own logic.",
+  },
+  "Critical path": {
+    name: "Critical path",
+    what: "The chain of activities with zero float — the longest sequence through the schedule. Its length IS the project duration, so a day lost on any of these is a day lost on the whole job.",
+    good: "A clear, continuous chain you can point at. That's where to put attention, expediting, and overtime.",
+    bad: "If it's scattered rather than continuous, the schedule logic is broken — a real critical path always connects start to finish. Watch for it growing as float elsewhere gets consumed.",
+  },
+  Baseline: {
+    name: "Baseline",
+    what: "The originally agreed plan for an activity — the dates everyone signed up to. Progress gets measured against it rather than against the latest reschedule.",
+    good: "Actual work tracking close to the baseline bars means the plan is holding.",
+    bad: "Actuals drifting steadily right of baseline is schedule slip. Re-baselining to hide it is how projects lose accountability.",
+  },
+  "Data date": {
+    name: "Data date",
+    what: "The cutoff the schedule is reported as of — everything left of this line is history, everything right is forecast. Often called the \"now line\".",
+    good: "A recent data date means you're looking at current reality.",
+    bad: "An old data date means the schedule hasn't been updated; progress shown to its right is a guess, not a status.",
+  },
+  Milestone: {
+    name: "Milestone",
+    what: "A zero-duration marker for a significant moment — notice to proceed, topping out, dry-in, substantial completion. It consumes no time itself; it records that something was achieved.",
+    good: "Milestones being hit on or before their planned dates.",
+    bad: "A milestone sliding repeatedly is the clearest early warning that a phase is in trouble.",
+  },
+  "Percent complete": {
+    name: "Percent complete",
+    what: "How much of an activity's work is finished, as a share of the whole.",
+    good: "Progress that keeps pace with elapsed time — 50% done halfway through the planned window.",
+    bad: "Progress lagging elapsed time means the activity will overrun unless it speeds up. Values stuck at 90% for a long stretch usually mean the last details were never closed out.",
+  },
+  Predecessor: {
+    name: "Predecessor / finish-to-start logic",
+    what: "A link saying one activity can't start until another finishes — you can't frame before the foundation cures. \"Lag\" is required waiting time built into that link, like concrete curing.",
+    good: "Logic that reflects how the work actually gets built, so the schedule reforecasts itself sensibly when something moves.",
+    bad: "Missing links mean the schedule won't react when an activity slips — the finish date stays put while reality moves.",
+  },
+  "RFI turnaround": {
+    name: "RFI turnaround",
+    what: "Days between asking the design team a question and getting the answer.",
+    good: "Short and consistent — roughly a week or less. Crews aren't waiting on paper.",
+    bad: "Long or growing turnaround stalls construction. A rising trend usually precedes delay claims.",
+  },
+  Buyout: {
+    name: "Buyout",
+    what: "Awarding subcontracts against the estimate. The pace of executed contracts over time shows how much scope is locked in at known cost.",
+    good: "Buyout tracking ahead of when each trade is needed on site, at or under the estimate.",
+    bad: "Late buyout means starting work with the price still unknown — the most common source of cost overruns.",
+  },
+  "Data currency": {
+    name: "Data currency",
+    what: "How recently each source system last delivered records. Different feeds go stale at different rates.",
+    good: "Every stream reporting within its expected cadence.",
+    bad: "A stream that stopped means the picture is partly historical. Decisions made on stale field data are the ones that surprise people later.",
+  },
   Pursuit: {
     name: "Pursuit",
     what: "A potential project being chased in business development — a bid or opportunity that isn't won yet.",
@@ -107,8 +167,14 @@ export const KPI_GUIDE = {
 };
 
 // Order matters: match the most specific alias first. Each entry is [canonicalKey, ...aliases].
+// NOTE: matching is word-boundary based, so a key containing a non-word character
+// (e.g. "% complete") can never match — that's why percent-complete is keyed
+// "Percent complete" with plain-word aliases.
 const ALIASES = [
   ["Win rate"], ["Over budget", "over-budget"], ["Overallocated", "over-allocated"],
+  ["RFI turnaround", "turnaround"], ["Data currency", "currency"], ["Data date", "now line", "as of"],
+  ["Total float", "float"], ["Critical path", "critical"], ["Percent complete", "pct complete", "percent complete"],
+  ["Predecessor", "predecessors", "lag", "logic"], ["Baseline"], ["Milestone", "milestones"], ["Buyout"],
   ["TRIR"], ["CPI"], ["SPI"], ["EAC"], ["BAC"], ["WIP"],
   ["RFI", "RFIs"], ["Backlog"], ["Pipeline"],
   ["Utilization", "util"], ["Bench", "unstaffed"], ["Submittal"], ["Pursuit"], ["Estimate"],

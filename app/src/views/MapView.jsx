@@ -8,7 +8,7 @@ import worldUrl from "world-atlas/countries-110m.json?url";
 import statesUrl from "us-atlas/states-10m.json?url";
 import { projectsGeo, listBusinessUnits, evmByProject, fieldByProject, safetyByProject } from "../lib/api.js";
 import { coordsFor } from "../lib/geo.js";
-import { BU_PALETTE, chartColor } from "../lib/palette.js";
+import { BU_PALETTE, chartColor, STAGE_COLOR, STAGE_ORDER, healthColor } from "../lib/palette.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
 import { defOf } from "../lib/glossary.js";
 
@@ -40,12 +40,8 @@ const clusterOffset = (i) => i === 0 ? [0, 0]
   : [9.5 * Math.sqrt(i) * Math.cos(i * GOLDEN), 9.5 * Math.sqrt(i) * Math.sin(i * GOLDEN)];
 const dotR = (v) => Math.min(11, 3 + Math.sqrt((v || 0) / 1e6) * 0.28);
 
-const STAGE_COLOR = {
-  pursuit: "#eab308", design: "#818cf8", precon: "#22d3ee",
-  construction: "#a3e635", closeout: "#94a3b8", warranty: "#64748b", complete: "#475569",
-};
-const STAGE_ORDER = ["pursuit", "design", "precon", "construction", "closeout", "warranty", "complete"];
-const healthColor = (cpi) => cpi == null ? "#64748b" : cpi < 0.95 ? chartColor("cpiBad") : cpi < 1 ? "#f59e0b" : chartColor("cpiOk");
+// STAGE_COLOR / STAGE_ORDER / healthColor moved to lib/palette.js — the Gantt
+// needs the same scales and they must not drift apart.
 const REDUCED = () => { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 
 export default function MapView({ businessUnit, focus, setFocus }) {

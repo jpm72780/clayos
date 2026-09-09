@@ -34,7 +34,7 @@ export default function GraphView({ businessUnit }) {
     let killed = false;
     let timer = null;
     setLoading(true);
-    subgraph({ businessUnit, domains, limit: 6500 }).then((data) => {
+    subgraph({ businessUnit, domains, limit: 8000 }).then((data) => {
       const g = new Graph();
       const count = Math.max(1, data.nodes.length);
       data.nodes.forEach((n, i) => {

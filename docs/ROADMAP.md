@@ -45,6 +45,9 @@ Single linked-selection interface (ADR-008). Live at https://clayos.pages.dev.
       2026-07-30): d3-geo/TopoJSON US-world basemap, all 200 projects at real city/state,
       city clusters, color-by BU/stage/cost-health, click→focus + agent fly-to
 - [x] Cross-cutting "Highlight by" filters (MasterFormat/CSI · UniFormat · Vendor · Employee)
+- [x] **Clayco Time tab** (session 15, 2026-09-09): Gantt with real CPM critical path + float +
+      FS logic + milestones, transaction history timeline, EVM S-curves; time range as a third
+      cross-cutting filter; seed reworked for credible schedules (migration 015, ADR-016)
 - [x] 3D ontology (`3d-force-graph`): floating project globe-clusters, lifecycle into depth
 - [x] Selection-driven docked KPI strip + docked Ask agent (click project → rescope)
 - [x] "Vascular" aesthetic: thin vessels, bloom/fog, drifting orbit, time-windowed activity flow

@@ -5,6 +5,69 @@
 
 ---
 
+## 2026-09-09 — Session 15 (Fable 5): the "Clayco Time" tab — LIVE
+
+**John's ask:** every node carries a date (schedule activities, transaction dates, write dates) —
+make a filterable time view: Gantt schedules, transaction history, etc.
+
+**Shipped** (`verify-time.mjs` 24/24 + map 13/13 + analytics 13/13, all against prod):
+a 4th top-level tab with three modes, plus a time range that acts as a third cross-cutting
+filter beside project-focus and highlight.
+
+- **Schedule (Gantt)** — 200 project bars; expand a detailed project for its activities with
+  baseline, % complete, hatched total float, milestones and finish-to-start links.
+  Group/sort/color by BU, stage, cost health or schedule health.
+- **History** — all 4,671 dated records on one axis: stacked volume histogram, per-type
+  swimlanes, and a detail list. Drag the top band to set the shared range.
+- **Trends** — PV/EV/AC S-curve for a focused project + CPI/SPI by month.
+
+**Phase 1 — the data had to be fixed first.** The old seed made a Gantt indefensible: every
+activity was a uniform 60-day bar at a 40-day offset, `is_critical` was hard-coded on four
+DISCONNECTED bars of a serial chain (impossible), float was random, `actual_start` was stamped on
+all 88 rows including ones planned into 2027, phases had no dates, and there was one orphan pay
+app #6 per project. Now:
+- **Real CPM.** `TRADE_DUR` + a non-serial `TRADE_DEPS` network, then forward/backward passes
+  derive ES/EF/LS/LF. Critical path and float fall out of the math — DC-001's chain is contiguous
+  (02→03→04→05→06→10→11) with 159/43/6 days float on the off-path MEP trades.
+- Durations scale with each project's own span; milestones (NTP, foundations, topping out,
+  dry-in, substantial completion); phase windows derived from the activity spans.
+- **Honest actuals**: `actual_start` only when the bar has actually started. Future-dated actuals
+  went 61 → **0**.
+- Monthly pay apps 1..N (a real billing series) and an **S-curve** `cost_progress` replacing the
+  linear ramp. Both preserve final-period totals exactly, so **evals stayed 6/6** through the reseed.
+- **Schedules for all 200 projects** (was 8) — 1,088 activity rows.
+
+**Migration 015 + ADR-016 — the graph budget.** The 960 summary rows for the long tail would have
+pushed the graph past the 6,500-node client subgraph limit and silently truncated entity types in
+the 3D/Network views (the session-11 bug). So `schedule_activities` gained `is_summary` +
+`activity_kind`, and the guard lives in `_upsert_entity` — the single choke point every projection
+branch calls — so triggers AND `kg_reproject_all` honour it without duplicating the 130-line
+branch ladder. Result: 1,088 activity rows, **0 summary rows in the graph**, entities 6,345→6,441.
+Client limit raised 6500→8000 in both call sites for real headroom.
+
+**Bug found and fixed: the Analytics trend chart was silently truncated.** `kpiHistory()` was an
+unpaged select against a table that pg_cron grows nightly, so PostgREST capped it at 1,000 of
+~7,800 rows. Now paged via `fetchAllRows` with server-side narrowing.
+
+**New shared infrastructure:** `lib/time.js` (parseDay, resolveRange, bucketize,
+deriveActivityStatus, WINDOWS lifted out of Lifecycle3DView), date formatters in `lib/format.js`,
+`STAGE_COLOR`/`healthColor`/`scheduleColor` lifted out of MapView into `lib/palette.js`,
+`components/TimeAxis.jsx`, 10 schedule glossary entries, and `HELP.time`.
+
+**Gotchas worth keeping:**
+- **`new Date("2026-06-27")` parses as UTC midnight** → renders as the 26th anywhere west of
+  Greenwich. Every Gantt bar would have been a day early. `time.js#parseDay` splits the parts and
+  builds a local-midnight Date; never use the string constructor on a PostgREST `date`.
+- **d3-zoom calls `stopImmediatePropagation` on mousedown**, so React's delegated `onMouseDown`
+  never fires on an element that d3-zoom is bound to. The History brush needed
+  `useTimeZoom(..., { dragPans: false })` to get its drags back.
+- **`innerText` applies CSS `text-transform`** — asserting on "Active filter" fails because the
+  label renders uppercase. Match chip content, not label casing.
+- Synthetic `new MouseEvent(...)` without `view: window` throws inside d3 (`event.view.document`);
+  drive real input with `page.mouse.*` in harnesses.
+
+---
+
 ## 2026-07-31 — Session 14 (Fable 5): self-explaining Analytics (KPI guide) — LIVE
 
 **John's ask:** make Analytics descriptive for people who aren't fluent in AEC KPIs — for every

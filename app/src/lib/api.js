@@ -115,12 +115,112 @@ export async function utilizationByBu() {
   const { data } = await supabase.from("kpi_resource_util").select("*").order("avg_utilization_pct", { ascending: false });
   return data || [];
 }
-// Time-series snapshots for trend charts (migration 007 kpi_history; backfilled in seed).
-export async function kpiHistory(metric, projectId = null) {
-  let q = supabase.from("kpi_history").select("snapshot_date,project_id,business_unit_id,value").eq("metric", metric).order("snapshot_date");
-  if (projectId) q = q.eq("project_id", projectId);
-  const { data } = await q;
+// Time-series snapshots for trend charts (migration 007 kpi_history; backfilled in
+// seed, then appended nightly by pg_cron).
+//
+// This USED to be a plain select, which PostgREST silently capped at 1,000 rows —
+// so the Analytics trend chart was quietly plotting only the earliest slice of a
+// table that grows every night. Paged now, and narrowable server-side: always
+// scope by project or BU where you can, because an unfiltered read of every
+// metric would approach fetchAllRows' 50k safety stop.
+export async function kpiHistory(metric, { projectId = null, businessUnitId = null, from = null, to = null } = {}) {
+  return fetchAllRows(() => {
+    let q = supabase.from("kpi_history")
+      .select("snapshot_date,project_id,business_unit_id,value")
+      .eq("metric", metric)
+      .order("snapshot_date").order("project_id"); // secondary key → stable paging
+    if (projectId) q = q.eq("project_id", projectId);
+    if (businessUnitId) q = q.eq("business_unit_id", businessUnitId);
+    if (from) q = q.gte("snapshot_date", from);
+    if (to) q = q.lte("snapshot_date", to);
+    return q;
+  });
+}
+
+// ─── Time views: schedule ────────────────────────────────────────────────────
+// Project spans — the only date range that covers all 200 projects, so it's what
+// the portfolio Gantt is built from. projectsGeo() omits actual_finish; this
+// doesn't, because planned-vs-actual needs it.
+export async function projectSchedule() {
+  return fetchAllRows(() => supabase.from("projects")
+    .select("id,code,name,business_unit_id,sector,lifecycle_stage,status,contract_value,start_date,end_date,actual_finish")
+    .order("start_date").order("id"));
+}
+
+// Activity bars. Deep projects carry real CPM detail; the long tail carries
+// is_summary rows (relational-only — migration 015 keeps them out of the graph).
+export async function scheduleActivities() {
+  return fetchAllRows(() => supabase.from("schedule_activities")
+    .select("id,project_id,activity_code,name,planned_start,planned_finish,actual_start," +
+            "actual_finish,pct_complete,is_critical,total_float_days,activity_kind,is_summary")
+    .order("project_id").order("planned_start").order("id"));
+}
+
+// Read the TABLE, not the graph: the `depends_on` edge projection drops dep_type
+// and lag_days (migration 006), which are exactly what a Gantt needs to draw logic.
+export async function scheduleDependencies() {
+  return fetchAllRows(() => supabase.from("schedule_dependencies")
+    .select("id,predecessor_id,successor_id,dep_type,lag_days").order("id"));
+}
+
+export async function projectPhases() {
+  return fetchAllRows(() => supabase.from("phases")
+    .select("id,project_id,name,seq,start_date,end_date,status")
+    .order("project_id").order("seq"));
+}
+
+// PV/EV/AC by month for one project (the EVM S-curve). Scoped deliberately —
+// never pull cost_progress portfolio-wide.
+export async function costCurve(projectId) {
+  const { data, error } = await supabase.from("cost_progress")
+    .select("period,pv,ev,ac,cost_accounts!inner(project_id)")
+    .eq("cost_accounts.project_id", projectId).order("period");
+  if (error) throw error;
   return data || [];
+}
+
+// ─── Time views: transaction history ─────────────────────────────────────────
+// Every dated record, normalised to { at, kind, id, pid, label, amount, endAt }.
+//
+// Deliberately NOT built on kg_entity_facts(): that RPC COALESCEs each record to
+// a single instant (so answered_date REPLACES submitted_date and RFI turnaround
+// becomes uncomputable), omits five entity types, and would need a join against
+// all ~6.4k entities to recover type/project/label. Ten skinny selects are
+// smaller on the wire and strictly more expressive.
+const EVENT_SOURCES = [
+  { table: "rfis", kind: "RFI",
+    cols: "id,project_id,number,subject,status,submitted_date,answered_date,cost_impact",
+    at: "submitted_date", endAt: "answered_date", amount: "cost_impact",
+    label: (r) => `RFI ${r.number} — ${r.subject || ""}`.trim() },
+  { table: "daily_logs", kind: "DailyLog", cols: "id,project_id,log_date,manpower_count",
+    at: "log_date", label: (r) => `Daily log — ${r.manpower_count ?? 0} on site` },
+  { table: "contracts", kind: "Contract",
+    cols: "id,project_id,contract_type,value,executed_date,scope",
+    at: "executed_date", amount: "value",
+    label: (r) => `${(r.contract_type || "contract").replace(/_/g, " ")} — ${r.scope || ""}`.trim() },
+  { table: "submittals", kind: "Submittal", cols: "id,project_id,number,title,status,submitted_date,returned_date",
+    at: "submitted_date", endAt: "returned_date", label: (r) => `Submittal ${r.number} — ${r.title || ""}`.trim() },
+  { table: "pay_apps", kind: "PayApp", cols: "id,project_id,number,period_end,status,submitted_date,approved_date",
+    at: "period_end", label: (r) => `Pay application #${r.number}` },
+  { table: "safety_events", kind: "SafetyEvent", cols: "id,project_id,event_date,type,severity,recordable",
+    at: "event_date", label: (r) => `${String(r.type || "event").replace(/_/g, " ")}${r.recordable ? " (recordable)" : ""}` },
+  { table: "quality_events", kind: "QualityEvent", cols: "id,project_id,type,status,identified_date,resolved_date",
+    at: "identified_date", endAt: "resolved_date", label: (r) => `${String(r.type || "").replace(/_/g, " ")} — ${r.status || ""}`.trim() },
+  { table: "documents", kind: "Document", cols: "id,project_id,doc_type,number,title,issued_date",
+    at: "issued_date", label: (r) => `${r.doc_type || "document"} ${r.number || ""} ${r.title || ""}`.trim() },
+];
+
+export async function timelineEvents() {
+  const per = await Promise.all(EVENT_SOURCES.map(async (src) => {
+    const rows = await fetchAllRows(() => supabase.from(src.table).select(src.cols).order("id"));
+    return rows.map((r) => ({
+      id: `${src.table}:${r.id}`, kind: src.kind, pid: r.project_id,
+      at: r[src.at] || null, endAt: src.endAt ? r[src.endAt] || null : null,
+      amount: src.amount != null ? r[src.amount] : null,
+      status: r.status || null, label: src.label(r),
+    })).filter((e) => e.at);
+  }));
+  return per.flat();
 }
 
 // Filtered subgraph for the ontology viewer: { nodes:[...], edges:[...] }

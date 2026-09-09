@@ -12,6 +12,7 @@ import OntologyIntro from "../components/OntologyIntro.jsx";
 import { defOf } from "../lib/glossary.js";
 import { fmtMoney as fmt$ } from "../lib/format.js";
 import { loadPrefs } from "../lib/prefs.js";
+import { WINDOWS } from "../lib/time.js";
 
 // literal-labels preference: read once per mount (App remounts the view on change)
 const LITERAL = () => loadPrefs().literal;
@@ -182,8 +183,8 @@ const num = (v) => (v == null ? null : Number(v));
 
 // Flow time-window (hours back from now). Recency is REAL — derived from each
 // record's semantic date via kg_entity_facts() (migration 010).
-const D = 24;
-const WINDOWS = [{ h: 7 * D, label: "7d" }, { h: 30 * D, label: "30d" }, { h: 60 * D, label: "60d" }, { h: 90 * D, label: "90d" }, { h: 180 * D, label: "6mo" }, { h: 365 * D, label: "1y" }, { h: 1e9, label: "all" }];
+// WINDOWS now lives in lib/time.js so the 3D flow and the Time views share one
+// vocabulary (7d/30d/…/all) instead of forking the labels.
 const NOOP = () => {}; // raycast override for greyed-out nodes
 // vessel thickness grows with the dollars a record carries (log scale)
 const vesselWidth = (amt) => (amt > 0 ? 0.12 + Math.max(0, Math.log10(amt) - 3.5) * 0.28 : 0.12);
@@ -247,7 +248,7 @@ export default function Lifecycle3DView({ businessUnit, focus, setFocus, hl, set
 
   useEffect(() => {
     let killed = false; setLoading(true);
-    subgraph({ businessUnit, limit: 6500 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
+    subgraph({ businessUnit, limit: 8000 }).then((d) => { if (!killed) { setData(d); setLoading(false); } }).catch((e) => { console.error(e); if (!killed) setLoading(false); });
     return () => { killed = true; };
   }, [businessUnit]);
   useEffect(() => {

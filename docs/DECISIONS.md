@@ -177,3 +177,25 @@ files (Cloudflare Pages, CSP-friendly, offline demos) and visually consistent wi
 which real tile providers (OSM policy, CARTO licensing, key management) complicate. **Future:** if
 projects ever get per-site addresses (Snowflake track), add real lat/lng columns there and bypass
 the lookup; the map reads coordinates through one `coordsFor()` seam.
+
+## ADR-016 — Summary-grain schedule rows stay relational (never graph nodes)
+**Status:** Accepted (2026-09-09, session 15)
+**Context:** The Time view's Gantt needs a schedule for all 200 projects, but only 8 carry real
+CPM detail. Generating ~960 summary bars for the long tail would have pushed `entities` from
+6,345 to ~7,300 against a client subgraph limit of 6,500 (`Lifecycle3DView.jsx` and
+`GraphView.jsx` each request `limit: 6500`). `kg_subgraph`'s LIMIT is alphabetical, so overflow
+does not degrade gracefully — it silently drops whole entity types, which is exactly the bug
+fixed in session 11. It would also push the 3D scene past its ~5k-node comfort zone while LOD
+remains a deferred item.
+**Decision:** `schedule_activities` gains `is_summary`; summary rows are written to the table but
+never projected into `entities`/`edges`. The Gantt reads the table directly over PostgREST. The
+guard sits in `clayos._upsert_entity()` — the single choke point every projection branch calls —
+rather than in `project_entity()`'s branch ladder, so table triggers and `kg_reproject_all()`
+both honour it without duplicating 130 lines. `_add_edge` already skips edges with a missing
+endpoint, so dependency edges for summary rows simply never materialise.
+**Rationale:** This is the same "keep the grain relational" call already made for `cost_progress`
+and `pay_app_lines`, and the one the Snowflake port makes for DailyLog-grain rows. The graph is
+for traversal and semantic search; a 200-project Gantt is a tabular read that gains nothing from
+being nodes. Verified after the reseed: 1,088 activity rows, 0 summary rows projected, entities
+at 6,441. **Future:** any enrichment must re-check this budget — the client limit is now 8,000,
+but 3D LOD is still the real ceiling.

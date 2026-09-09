@@ -31,12 +31,21 @@ const CHART = {
   bac: "#3b82f6", eac: "#f59e0b", over: "#f59e0b", under: "#22d3ee",
   total: "#334155", open: "#ef4444", danger: "#dc2626",
   cpiLine: "#22d3ee", spiLine: "#a3e635",
+  // schedule / timeline
+  baseline: "#3f4a5a", actual: "#38bdf8", progress: "#22d3ee", critical: "#ef4444",
+  float: "#64748b", now: "#fbbf24", asOf: "#a78bfa", depLink: "#64748b",
+  pv: "#3b82f6", ev: "#a3e635", ac: "#f59e0b",
 };
 const CHART_CB = {
   cpiBad: "#d55e00", cpiOk: "#0072b2", spiBad: "#e69f00", spiOk: "#56b4e9",
   bac: "#0072b2", eac: "#e69f00", over: "#e69f00", under: "#56b4e9",
   total: "#475569", open: "#d55e00", danger: "#d55e00",
   cpiLine: "#56b4e9", spiLine: "#009e73",
+  // schedule / timeline — critical must not rely on red alone here, so the Gantt
+  // pairs this color with a heavier outline and the legend glyph.
+  baseline: "#4a5262", actual: "#56b4e9", progress: "#0072b2", critical: "#d55e00",
+  float: "#8f98a6", now: "#e69f00", asOf: "#cc79a7", depLink: "#8f98a6",
+  pv: "#0072b2", ev: "#009e73", ac: "#e69f00",
 };
 
 // The active palette is a display preference; views bake colors at scene-build time,
@@ -67,6 +76,23 @@ export const shapeFor = (t) => TYPE_SHAPE[t] || "●";
 // Business-unit tints — shared by the 3D orbit and the map so a BU reads as the
 // same hue in every view (assigned by sorted business_unit_id order).
 export const BU_PALETTE = ["#38bdf8", "#a78bfa", "#f472b6", "#fb923c", "#4ade80"];
+
+// Lifecycle stage colors + cost-health scale. Lifted out of MapView so the Map,
+// the Gantt and anything later can't drift apart on what "construction" or
+// "over budget" looks like.
+export const STAGE_COLOR = {
+  pursuit: "#eab308", design: "#818cf8", precon: "#22d3ee",
+  construction: "#a3e635", closeout: "#94a3b8", warranty: "#64748b", complete: "#475569",
+};
+export const STAGE_ORDER = ["pursuit", "design", "precon", "construction", "closeout", "warranty", "complete"];
+
+/** CPI → color. Below 0.95 is over budget, 0.95–1.0 is a watch item. */
+export const healthColor = (cpi) =>
+  cpi == null ? "#64748b" : cpi < 0.95 ? chartColor("cpiBad") : cpi < 1 ? "#f59e0b" : chartColor("cpiOk");
+
+/** SPI → color, same thresholds — the schedule counterpart the Map never had. */
+export const scheduleColor = (spi) =>
+  spi == null ? "#64748b" : spi < 0.95 ? chartColor("spiBad") : spi < 1 ? "#f59e0b" : chartColor("spiOk");
 
 export const DOMAINS = [
   "project", "project_controls", "design", "field_ops", "safety", "quality",
