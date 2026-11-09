@@ -19,6 +19,29 @@ const MODEL = "claude-opus-4-8";
 const MAX_TOOL_TURNS = 24;
 const MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
+// Prompt caching. The prompt is tools -> system -> messages and caching is a
+// prefix match, so: a breakpoint on the last kg_* tool (never changes), one on
+// the system block (stable within a request's tool loop; the world-state
+// section only moves when the data does), and top-level automatic caching so
+// each tool-loop iteration reads what the previous one wrote. Opus 4.8 caches
+// prefixes of 1024+ tokens; the tool list alone clears that. Verify in the
+// function logs: cache_read should be > 0 from the second iteration on.
+const EPHEMERAL = { type: "ephemeral" } as const;
+const CACHED_KG_TOOLS = KG_TOOLS.map((t, i) => (i === KG_TOOLS.length - 1 ? { ...t, cache_control: EPHEMERAL } : t));
+function requestBody(system: string, messages: Msg[], stream: boolean): string {
+  return JSON.stringify({
+    model: MODEL, max_tokens: 4096,
+    cache_control: EPHEMERAL,
+    system: [{ type: "text", text: system, cache_control: EPHEMERAL }],
+    messages, tools: CACHED_KG_TOOLS,
+    ...(stream ? { stream: true } : {}),
+  });
+}
+function logCache(tag: string, u: any) {
+  if (!u) return;
+  console.log(`[cache] ${tag} input=${u.input_tokens || 0} cache_write=${u.cache_creation_input_tokens || 0} cache_read=${u.cache_read_input_tokens || 0} output=${u.output_tokens || 0}`);
+}
+
 // deno-lint-ignore-file no-explicit-any
 type Msg = { role: "user" | "assistant"; content: any };
 
@@ -89,11 +112,13 @@ async function callClaude(apiKey: string, system: string, messages: Msg[]): Prom
   const r = await fetch(MESSAGES_URL, {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 4096, system, messages, tools: KG_TOOLS }),
+    body: requestBody(system, messages, false),
   });
   const text = await r.text();
   if (!r.ok) throw new Error(`anthropic_error ${r.status}: ${text.slice(0, 400)}`);
-  return JSON.parse(text);
+  const resp = JSON.parse(text);
+  logCache("agent-ask json", resp.usage);
+  return resp;
 }
 
 // Run one tool turn's tool_use blocks; returns the tool_result content array.
@@ -166,7 +191,7 @@ async function streamClaude(
   const r = await fetch(MESSAGES_URL, {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 4096, system, messages, tools: KG_TOOLS, stream: true }),
+    body: requestBody(system, messages, true),
   });
   if (!r.ok || !r.body) {
     const text = await r.text().catch(() => "");
@@ -206,6 +231,8 @@ async function streamClaude(
           try { b.input = partial[ev.index] ? JSON.parse(partial[ev.index]) : {}; } catch { b.input = {}; }
           onToolStop(b);
         }
+      } else if (ev.type === "message_start") {
+        logCache("agent-ask stream", ev.message?.usage);
       } else if (ev.type === "error") {
         throw new Error(`anthropic_stream_error: ${JSON.stringify(ev.error).slice(0, 300)}`);
       }

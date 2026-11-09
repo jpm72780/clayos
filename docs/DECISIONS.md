@@ -199,3 +199,23 @@ for traversal and semantic search; a 200-project Gantt is a tabular read that ga
 being nodes. Verified after the reseed: 1,088 activity rows, 0 summary rows projected, entities
 at 6,441. **Future:** any enrichment must re-check this budget — the client limit is now 8,000,
 but 3D LOD is still the real ceiling.
+
+## ADR-017 — Prompt caching on `agent-ask`: two explicit breakpoints + automatic tail
+**Status:** Accepted (2026-11-09, session 16)
+**Context:** `agent-ask` is a tool-use loop on Opus 4.8. Each iteration re-sent the full `KG_TOOLS`
+list, the system prompt (rules + world-state rollup) and the growing conversation at full input
+price, although everything before the newest tool result is byte-identical to the previous
+iteration. Caching is a prefix match over `tools -> system -> messages`, and Opus 4.8 caches
+prefixes of 1024+ tokens (our prefix is ~3.2k).
+**Decision:** Breakpoint on the last tool definition (the tool list never changes, so it stays
+cached even when the system block changes), breakpoint on the system block (stable within a
+request), and top-level `cache_control: {type: "ephemeral"}` so the automatic breakpoint follows
+the end of the conversation. Both API paths build the body through one `requestBody()` helper.
+Cache usage is logged on every call rather than stored — this is a demo; the log line is the
+verification tool.
+**Rationale:** A cache write costs 1.25x and a read 0.1x, so the prefix pays for itself on the
+second request, and every question that calls a tool guarantees a second request. The world-state
+section sits inside the system block on purpose: it changes only when the data changes (pg_cron
+KPI jobs), so splitting it out would spend a third breakpoint for no gain. Not done: the 1-hour
+TTL — demo traffic is bursty within a session and silent between sessions, so the 2x write price
+would not be recovered.

@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-11-09 — Session 16 (Fable 5.1): prompt caching on `agent-ask` — LIVE
+
+**John's ask:** apply Anthropic prompt caching to the projects where it pays.
+
+**What changed:** `agent-ask` now sends two explicit cache breakpoints (last `kg_*` tool, the
+single system block) plus top-level automatic caching for the conversation tail, through one
+`requestBody()` helper used by both the JSON and streaming paths. Every call logs a
+`[cache] …` line with `input / cache_write / cache_read / output` token counts (JSON path from
+the response, streaming path from `message_start`). No schema or frontend change.
+
+**Verified on prod** (deployed with `supabase functions deploy agent-ask --project-ref
+fwaydsjpudusbaeyccjc --no-verify-jwt`): one question that took 4 model turns and 8 tool calls
+logged `cache_write=3231 cache_read=0` on turn 1, then `cache_read=3231 / 3504 / 4489` on turns
+2–4 with only the new tail written — the healthy-loop signature. Turns 2+ now pay ~10% for the
+prefix instead of full price. See ADR-017.
+
+**Next:** nothing pending for this item. Check the `[cache]` log lines again after any change to
+`systemPrompt()` / `KG_TOOLS` — a silent invalidator shows up as `cache_read=0` on turn 2.
+
+---
+
 ## 2026-09-09 — Session 15 (Fable 5): the "Clayco Time" tab — LIVE
 
 **John's ask:** every node carries a date (schedule activities, transaction dates, write dates) —
