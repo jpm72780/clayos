@@ -1,26 +1,36 @@
 // Headless verification for the Clayco Time tab (Schedule / History / Trends).
 // Same CDP-attach pattern as verify-map.mjs: snap chromium won't start under
 // puppeteer's launcher, and the profile dir must be a NON-hidden $HOME path
-// (AppArmor denies dot-dirs). Port 9337 — 9333/9335 belong to the other suites.
+// (AppArmor denies dot-dirs), so it lives in the repo's gitignored verify-tmp/
+// and is deleted on exit. Port 9337 — 9333/9335 belong to the other suites.
 import puppeteer from "puppeteer-core";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import os from "node:os";
 
 const BASE = process.argv[2] || "http://localhost:4181";
-const SHOTS = process.argv[3] || "/tmp/claude-1001/-home-clawd/e26b339f-c202-4716-8df0-843940355621/scratchpad";
+const SHOTS = process.argv[3] || join(import.meta.dirname, "..", "shots");
+mkdirSync(SHOTS, { recursive: true });
 const hash = (o) => Buffer.from(encodeURIComponent(JSON.stringify(o))).toString("base64");
 
 const results = [];
 const check = (name, ok, extra = "") => { results.push([name, ok, extra]); console.log(`${ok ? "✓" : "✗"} ${name}${extra ? " — " + extra : ""}`); };
 
-const profile = mkdtempSync(join(os.homedir(), "clayos-verify-"));
+const TMP = join(import.meta.dirname, "..", "verify-tmp");
+mkdirSync(TMP, { recursive: true });
+const profile = mkdtempSync(join(TMP, "profile-"));
 const PORT = 9337;
+// detached so one group kill stops every chromium process before the rm.
 const chrome = spawn("/snap/bin/chromium", [
   "--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
   "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-dev-shm-usage", "--no-first-run",
-], { stdio: "ignore" });
+], { stdio: "ignore", detached: true });
+process.on("exit", () => {
+  try { process.kill(-chrome.pid, "SIGKILL"); } catch { /* already gone */ }
+  rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(128 + os.constants.signals[sig]));
 let browser = null;
 for (let i = 0; i < 40 && !browser; i++) {
   await new Promise((r) => setTimeout(r, 500));

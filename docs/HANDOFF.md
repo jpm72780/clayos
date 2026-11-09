@@ -79,7 +79,10 @@ focus flies the map. Color-by BU / stage / **cost health**; size = contract $. `
 lives in `lib/palette.js` (shared w/ 3D). Repo harness: `app/verify-map.mjs`.
 **New box gotchas:** puppeteer can't launch snap chromium — spawn it with
 `--remote-debugging-port` + `puppeteer.connect`; the profile dir must be a NON-hidden `$HOME`
-path (AppArmor denies dot-dirs). And the first post-deploy prod load can still serve stale edge
+path (AppArmor denies dot-dirs and `/tmp`). The harnesses put it in the repo's gitignored
+`verify-tmp/` and delete it on exit; screenshots default to the gitignored `shots/`. Never
+`mkdtemp` in `$HOME` itself — 116 orphaned profiles (5.7 GB) piled up there before this was
+fixed. And the first post-deploy prod load can still serve stale edge
 cache — re-run before diagnosing.
 
 ---

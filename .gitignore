@@ -26,3 +26,7 @@ secrets.env
 
 # local agent settings
 .claude/
+
+# headless harness output: chromium profiles (auto-deleted) + screenshots
+verify-tmp/
+shots/
